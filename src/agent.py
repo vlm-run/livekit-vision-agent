@@ -34,6 +34,8 @@ GATEWAY_WS = os.environ.get("VLMRUN_GATEWAY_WS", "wss://gateway.vlm.run/v1/ws")
 MODEL = os.environ.get("VLMRUN_MODEL", "usyd-community/vitpose-plus-large")
 METHOD = os.environ.get("VLMRUN_METHOD", "pose")
 PROMPT = os.environ.get("VLMRUN_PROMPT", "")
+# JSON for the method, e.g. {"bbox_xywh": [0.1, 0.1, 0.4, 0.5]} for SAM segment_box.
+PARAMS = os.environ.get("VLMRUN_PARAMS", "")
 VISION_FPS = float(os.environ.get("VISION_FPS", "8"))
 RESULT_TOPIC = "vision"
 # Close the session after this long without a new frame (a paused or muted camera).
@@ -66,7 +68,7 @@ class VisionAgent:
         self._reader: asyncio.Task[None] | None = None
         self._stream: rtc.VideoStream | None = None
         self._tasks: set[asyncio.Task[None]] = set()
-        self._want = (MODEL, METHOD, PROMPT)
+        self._want = (MODEL, METHOD, PROMPT, PARAMS)
         self._seq = 0
 
     async def start(self) -> None:
@@ -152,13 +154,9 @@ class VisionAgent:
         frame, self.latest = self.latest, None
         return frame
 
-    async def _open(self, api_key: str, want: tuple[str, str, str]) -> GatewaySession:
-        model, method, prompt = want
-        params = None
-        if method == "segment":
-            prompt = prompt or "face"
-            params = {"prompt": prompt, "mask_format": "png"}
-        session = GatewaySession(GATEWAY_WS, api_key, model, method, prompt, params)
+    async def _open(self, api_key: str, want: tuple[str, str, str, str]) -> GatewaySession:
+        model, method, prompt, params = want
+        session = GatewaySession(GATEWAY_WS, api_key, model, method, prompt, json.loads(params or "{}"))
         await session.open()
         logger.info("gateway open model=%s method=%s max_fps=%s", model, method or "(default)", session.max_fps)
         return session
@@ -175,7 +173,7 @@ class VisionAgent:
         if not api_key:
             raise RuntimeError("VLMRUN_API_KEY is not set")
         session: GatewaySession | None = None
-        opened_with: tuple[str, str, str] | None = None
+        opened_with: tuple[str, str, str, str] | None = None
         interval = sample_interval(VISION_FPS, 0)
         failures = 0
 

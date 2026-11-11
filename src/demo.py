@@ -38,7 +38,8 @@ class DemoAgent(agent.VisionAgent):
         model = str(body.get("model") or "").strip()
         if not model:
             return
-        self._want = (model, str(body.get("method") or ""), str(body.get("prompt") or ""))
+        params = json.dumps(body.get("params") or {}, sort_keys=True)
+        self._want = (model, str(body.get("method") or ""), str(body.get("prompt") or ""), params)
         logger.info("model request %s method=%s", model, self._want[1] or "(default)")
 
     async def _publish(self, jpeg: bytes, event: dict, model: str, latency_ms: int) -> None:

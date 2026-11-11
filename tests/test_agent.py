@@ -344,14 +344,13 @@ class _Reader:
 
 
 
-async def test_segment_sends_prompt_and_png_masks():
+async def test_method_params_reach_the_session():
     vision = agent.VisionAgent(FakeRoom())  # type: ignore[arg-type]
-    vision._want = ("some/segment-model", "segment", "")
+    vision._want = ("facebook/sam3.1", "segment_box", "", '{"bbox_xywh": [0.1, 0.1, 0.4, 0.5]}')
     vision.push(rgb_frame())
     task = await run_loop(vision)
     await wait_for(lambda: sent_count() >= 1)
     await stop(task)
 
     session = FakeSession.instances[0]
-    assert session.prompt == "face", "segment defaults to a prompt"
-    assert session.method_params == {"prompt": "face", "mask_format": "png"}
+    assert session.prompt == "" and session.method_params == {"bbox_xywh": [0.1, 0.1, 0.4, 0.5]}
