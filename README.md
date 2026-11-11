@@ -35,7 +35,7 @@ Open http://localhost:8080 and click **Share camera** or **Share screen**.
 
 ## What the agent sends
 
-`session.create` names `VLMRUN_MODEL`. `VLMRUN_METHOD` selects the method (`pose` for ViTPose and HaMeR, `segment` for SAM). `VLMRUN_PROMPT` is the session prompt.
+`session.create` names `VLMRUN_MODEL`, and nothing else is needed for ViTPose or RF-DETR. `VLMRUN_METHOD` is optional; empty uses the model's default method. `VLMRUN_PROMPT` is the session prompt (what SAM segments, or a chat model's question), and `VLMRUN_PARAMS` is JSON `method_params`.
 
 The model must have a `realtime` block. A generative chat model is refused on this socket. The default is `usyd-community/vitpose-plus-large`.
 
