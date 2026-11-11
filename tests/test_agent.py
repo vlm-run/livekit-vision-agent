@@ -212,11 +212,11 @@ async def test_missing_api_key_fails_fast(monkeypatch):
         await agent.VisionAgent(FakeRoom())._analysis_loop()  # type: ignore[arg-type]
 
 
-def test_wide_frames_are_scaled_to_960_pixels():
+def test_wide_frames_are_scaled_to_640_pixels():
     jpeg = agent._jpeg(rgb_frame(1920, 1080))
     image = Image.open(io.BytesIO(jpeg))
     assert image.format == "JPEG"
-    assert image.size == (960, 540)
+    assert image.size == (640, 360)
 
 
 

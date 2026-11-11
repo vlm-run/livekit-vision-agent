@@ -47,13 +47,13 @@ MAX_RETRY_S = 30.0
 FRAME_TIMEOUT_S = 5.0
 
 
-def _jpeg(frame: rtc.VideoFrame, max_width: int = 960) -> bytes:
+def _jpeg(frame: rtc.VideoFrame, max_width: int = 640) -> bytes:
     # The reader already asks VideoStream for RGB24, so the buffer is packed RGB.
     image = Image.frombytes("RGB", (frame.width, frame.height), bytes(frame.data))
     if image.width > max_width:
         image = image.resize((max_width, int(image.height * max_width / image.width)))
     buffer = io.BytesIO()
-    image.save(buffer, format="JPEG", quality=80)
+    image.save(buffer, format="JPEG", quality=70)
     return buffer.getvalue()
 
 
@@ -238,7 +238,8 @@ class VisionAgent:
                     failures = 0
                     if event is not None:
                         latency_ms = round((time.perf_counter() - started) * 1000)
-                        await self._publish(jpeg, event, session.model, latency_ms)
+                        # Off the critical path: the next frame doesn't wait for the room.
+                        self._track_task(asyncio.create_task(self._publish(jpeg, event, session.model, latency_ms)))
                         logger.info("result %sms model=%s", latency_ms, session.model)
                 except Exception:
                     logger.exception("frame failed")
