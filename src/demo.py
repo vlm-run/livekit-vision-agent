@@ -22,6 +22,8 @@ logger = logging.getLogger("vlmrun-vision")
 
 
 class DemoAgent(agent.VisionAgent):
+    keep = ("mask",)
+
     async def start(self) -> None:
         self.room.register_text_stream_handler("control", self._on_control)
         await super().start()

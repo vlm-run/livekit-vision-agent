@@ -50,8 +50,14 @@ def _trim(value: object) -> object:
     return value
 
 
-def observation(event: dict[str, Any], *, model: str, latency_ms: int) -> dict[str, Any]:
-    """The model's JSON for one frame, plus the timing the demo prints."""
+def observation(
+    event: dict[str, Any], *, model: str, latency_ms: float, keep: tuple[str, ...] = ()
+) -> dict[str, Any]:
+    """The model's JSON for one frame, plus the timing the demo prints.
+
+    Long strings are trimmed to keep the data channel small; ``keep`` names top-level
+    fields (such as a SAM ``mask``) that are passed through whole.
+    """
     content = message_content(event.get("response"))
     if isinstance(content, str):
         try:
@@ -63,6 +69,7 @@ def observation(event: dict[str, Any], *, model: str, latency_ms: int) -> dict[s
     body = _trim(content)
     if not isinstance(body, dict):
         body = {"value": body}
+    body.update({k: content[k] for k in keep if k in content})
     body["_vlmrun"] = {
         "model": model,
         "latency_ms": latency_ms,

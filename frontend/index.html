@@ -15,25 +15,26 @@ if (!crypto.randomUUID) {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <style>
+  html { color-scheme: light; }
   :root {
-    --background: hsl(224 10% 10%); --card: hsl(224 8% 13%); --border: hsl(224 10% 22%);
-    --foreground: hsl(0 0% 98%); --muted: hsl(0 0% 70%); --primary: hsl(224 76.3% 48%);
-    --primary-soft: hsl(224 76.3% 62%); --radius: .4rem;
+    --background: hsl(224 1% 100%); --card: hsl(224 1% 100%); --border: hsl(60 2% 88%);
+    --foreground: hsl(224 1% 10%); --muted: hsl(0 0% 40%); --primary: hsl(224 76.3% 48%);
+    --primary-soft: hsl(224 76.3% 48%); --radius: .4rem;
   }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--background); color:var(--foreground); font:14px/1.45 Inter,system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
   header { display:flex; align-items:center; gap:10px; padding:12px 24px; border-bottom:1px solid var(--border); }
-  header b { font-weight:600; font-size:15px; }
+  header img { display:block; }
   header .sub { color:var(--muted); }
   #status { margin-left:auto; display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
   #status::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--muted); }
-  #status.live::before { background:var(--primary-soft); box-shadow:0 0 0 3px hsl(224 76.3% 48% / .3); }
+  #status.live::before { background:var(--primary-soft); box-shadow:0 0 0 3px hsl(224 76.3% 48% / .2); }
   main { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:20px; padding:20px 24px; max-width:1400px; margin:auto; }
   @media (max-width:960px) { main { grid-template-columns:1fr; } }
   .caps { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:500; margin:0 0 10px; }
   .card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
   .rail { display:flex; flex-direction:column; gap:20px; min-width:0; }
-  .stage { position:relative; aspect-ratio:16/9; background:#000; border-radius:var(--radius); overflow:hidden; }
+  .stage { position:relative; aspect-ratio:16/9; background:hsl(224 10% 10%); border-radius:var(--radius); overflow:hidden; }
   .stage canvas, .stage video.main { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
   .pip { position:absolute; right:12px; bottom:12px; width:22%; aspect-ratio:16/9; border-radius:var(--radius); overflow:hidden; border:1px solid hsl(0 0% 100% / .25); background:#000; }
   .pip video { width:100%; height:100%; object-fit:cover; display:block; }
@@ -43,19 +44,15 @@ if (!crypto.randomUUID) {
   .metrics { display:flex; gap:32px; padding:14px 2px 0; }
   .metrics b { display:block; font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
   .metrics span { color:var(--muted); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
-  .clips { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
-  .clip { background:none; border:0; padding:0; color:var(--foreground); text-align:left; cursor:pointer; font:inherit; font-size:12px; }
-  .clip video { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; border-radius:var(--radius); background:#000; box-shadow:0 0 0 1px var(--border); pointer-events:none; }
-  .clip:hover video { box-shadow:0 0 0 1px var(--muted); }
-  .clip[aria-pressed=true] video { box-shadow:0 0 0 2px var(--primary); }
-  .clip span { display:block; margin-top:4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  select { width:100%; background:var(--background); border:1px solid var(--border); color:var(--foreground); border-radius:var(--radius); padding:7px 10px; font:inherit; }
   .models { display:flex; flex-wrap:wrap; gap:6px; }
   .models button { background:none; border:1px solid var(--border); color:var(--foreground); border-radius:var(--radius); padding:6px 12px; font:inherit; cursor:pointer; }
   .models button:hover { border-color:var(--muted); }
-  .models button[aria-pressed=true] { background:var(--primary); border-color:var(--primary); }
+  .models button[aria-pressed=true] { background:var(--primary); border-color:var(--primary); color:#fff; }
   input { width:100%; margin-top:10px; background:var(--background); border:1px solid var(--border); color:var(--foreground); border-radius:var(--radius); padding:7px 10px; font:inherit; }
   input:focus-visible, button:focus-visible { outline:2px solid var(--primary-soft); outline-offset:1px; }
-  .logs, .result { grid-column:1/-1; }
+  .logs { grid-column:1/-1; }
+  .result { margin-top:16px; }
   .logs .scroll { max-height:260px; overflow:auto; }
   table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
   th { text-align:left; color:var(--muted); font-weight:500; padding:0 10px 6px 0; position:sticky; top:0; background:var(--card); }
@@ -69,7 +66,7 @@ if (!crypto.randomUUID) {
 </head>
 <body>
 <header>
-  <b>VLM Run</b><span class="sub">Live vision on LiveKit</span>
+  <img src="vlm-blue.svg" alt="VLM Run" height="30"><span class="sub">Live vision on LiveKit</span>
   <span id="status">pick a clip</span>
 </header>
 <main>
@@ -84,6 +81,10 @@ if (!crypto.randomUUID) {
       <div><b id="p50">–</b><span>median ms</span></div>
       <div><b id="fps">–</b><span>results / s</span></div>
     </div>
+    <section class="card result">
+      <p class="caps">Result JSON</p>
+      <pre id="json">waiting for the agent</pre>
+    </section>
   </div>
   <div class="rail">
     <section class="card">
@@ -92,14 +93,10 @@ if (!crypto.randomUUID) {
       <input id="prompt" placeholder="prompt" hidden>
     </section>
     <section class="card">
-      <p class="caps">Clips</p>
-      <div class="clips" id="clips"></div>
+      <p class="caps">Clip</p>
+      <select id="clips"><option value="" disabled selected>Choose a clip…</option></select>
     </section>
   </div>
-  <section class="card result">
-    <p class="caps">Result JSON</p>
-    <pre id="json">waiting for the agent</pre>
-  </section>
   <section class="card logs">
     <p class="caps">Logs</p>
     <div class="scroll">
@@ -113,12 +110,12 @@ if (!crypto.randomUUID) {
 <script>
 const BASE = "https://storage.googleapis.com/vlm-data-public-prod/";
 const CLIPS = [
+  ["Drone, houses", "hub/examples/video.agent/drone_inspection.mp4"],
+  ["Physical AI", "hub/examples/robotics.agent/physical-ai.mp4"],
   ["Warehouse forklifts", "hub/examples/video/warehouse-forklifts-yard-aerial.mp4"],
   ["Pallet jack aisle", "hub/examples/video/warehouse-pallet-jack-aisle.mp4"],
   ["Reach truck, hi-vis", "hub/examples/video/warehouse-reach-truck-hivis-aisle.mp4"],
-  ["Drill press", "hub/examples/video/manufacturing-drill-press-machining.mp4"],
   ["Drone, solar farm", "hub/examples/video/drone-solar-farm-inspection.mp4"],
-  ["Pipe welding", "hub/examples/video/industrial-pipe-welding-inspection.mp4"],
   ["Robot manipulation", "hub/examples/video.agent/robotics_manipulation_tracking.mp4"],
   ["Dashcam", "hub/examples/video.dashcam/00914.mp4"],
   ["Home workout", "gw/examples/fitness-home-workout.mp4"],
@@ -139,11 +136,11 @@ const frames = new Map(), results = new Map();
 let shown = -1;
 const latencies = [], stamps = [];
 
-const TAGS = { connected: "#2dd4bf", clip: "#38bdf8", model: "#c084fc", "session.start": "#fb923c", "session.open": "#a3e635",
-  "session.close": "#8a93a0", "session.failed": "#f87171", "frame.failed": "#f87171", result: "#818cf8", error: "#f87171" };
+const TAGS = { connected: "#0d9488", clip: "#0284c7", model: "#9333ea", "session.start": "#ea580c", "session.open": "#16a34a",
+  "session.close": "#6b7280", "session.failed": "#dc2626", "frame.failed": "#dc2626", result: "#4f46e5", error: "#dc2626" };
 function log(kind, detail) {
   const row = document.createElement("tr");
-  const color = TAGS[kind] || "#8a93a0";
+  const color = TAGS[kind] || "#6b7280";
   row.innerHTML = `<td class="t">${new Date().toLocaleTimeString([], { hour12: false })}</td>
     <td class="k"><span class="tag" style="color:${color}">${kind}</span></td><td class="d"></td>`;
   row.lastElementChild.textContent = detail;
@@ -155,14 +152,8 @@ const fields = (o) => Object.entries(o).filter(([k]) => k !== "event").map(([k, 
 function say(text, live) { statusEl.textContent = text; statusEl.classList.toggle("live", !!live); }
 
 // ---- controls
-CLIPS.forEach((c) => {
-  const b = document.createElement("button");
-  b.className = "clip";
-  b.dataset.clip = c[0];
-  b.innerHTML = `<video src="${BASE + c[1]}#t=1" preload="metadata" muted playsinline crossorigin="anonymous"></video><span>${c[0]}</span>`;
-  b.onclick = () => play(c);
-  $("clips").append(b);
-});
+CLIPS.forEach((c, i) => $("clips").append(new Option(c[0], i)));
+$("clips").onchange = (e) => play(CLIPS[Number(e.target.value)]);
 MODELS.forEach((m) => {
   const b = document.createElement("button");
   b.textContent = m[0];
@@ -171,7 +162,7 @@ MODELS.forEach((m) => {
   $("models").append(b);
 });
 function mark() {
-  for (const b of $("clips").children) b.setAttribute("aria-pressed", !!clip && b.dataset.clip === clip[0]);
+  if (clip) $("clips").value = CLIPS.indexOf(clip);
   for (const b of $("models").children) b.setAttribute("aria-pressed", b.dataset.model === model[1]);
   promptEl.hidden = !model[3];
 }
@@ -244,7 +235,7 @@ async function connect() {
   r.registerTextStreamHandler("vision", async (reader) => {
     let body;
     try { body = JSON.parse(await reader.readAll()); } catch { return; }
-    $("json").textContent = JSON.stringify(body, null, 2);
+    $("json").textContent = JSON.stringify(body, (k, v) => (k === "data" && typeof v === "string" && v.length > 200 ? `<${v.length} chars>` : v), 2);
     const meta = body._vlmrun || {};
     if (meta.latency_ms != null) metrics(meta.latency_ms);
     log("result", `#${meta.seq}  ${Number(meta.latency_ms).toFixed(1)} ms  gateway ${meta.gateway_ms != null ? Number(meta.gateway_ms).toFixed(1) : "–"} ms  ${Array.isArray(body.items) ? body.items.length + " items" : "text"}`);
@@ -275,13 +266,16 @@ function metrics(ms) {
   $("fps").textContent = (stamps.length / Math.min(5, (now - stamps[0]) / 1000 || 1)).toFixed(1);
 }
 
-function draw(id) {
+async function draw(id) {
   const bitmap = frames.get(id), body = results.get(id);
   if (!bitmap || !body) return;
+  const labels = body.mask && body.mask.data ? await decodeLabels(body.mask).catch(() => null) : null;
+  if (Number(id) < shown) return;  // a newer frame was drawn while the mask decoded
   $("empty").hidden = true;
   view.width = bitmap.width; view.height = bitmap.height;
   const ctx = view.getContext("2d");
   ctx.drawImage(bitmap, 0, 0);
+  if (labels) paintMask(ctx, labels, body.items || []);
   paint(ctx, body, bitmap.width, bitmap.height);
   shown = Number(id);
   for (const map of [frames, results]) for (const k of map.keys()) if (Number(k) <= shown) map.delete(k);
@@ -295,11 +289,50 @@ const classColor = (name) => {
   for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
   return PALETTE[Math.abs(hash) % PALETTE.length];
 };
+const SAM_PALETTE = ["#22d3ee", "#f472b6", "#a3e635", "#fb923c", "#a78bfa", "#facc15", "#34d399", "#f87171", "#60a5fa", "#e879f9"];
+const samColor = (label) => {  // FNV-1a of the class name: the same colour on every frame
+  let hash = 0x811c9dc5;
+  for (const ch of (label || "match").trim().toLowerCase()) hash = Math.imul(hash ^ ch.charCodeAt(0), 0x01000193);
+  return SAM_PALETTE[(hash >>> 0) % SAM_PALETTE.length];
+};
 const OPENPOSE_COLORS = ["#ff0000","#ff5500","#ffaa00","#ffff00","#aaff00","#55ff00","#00ff00","#00ff55","#00ffaa","#00ffff","#00aaff","#0055ff","#0000ff","#5500ff","#aa00ff","#ff00ff","#ff00aa","#ff0055"];
 const COCO = ["nose","left_eye","right_eye","left_ear","right_ear","left_shoulder","right_shoulder","left_elbow","right_elbow","left_wrist","right_wrist","left_hip","right_hip","left_knee","right_knee","left_ankle","right_ankle"];
 const JOINTS = ["nose","neck","right_shoulder","right_elbow","right_wrist","left_shoulder","left_elbow","left_wrist","right_hip","right_knee","right_ankle","left_hip","left_knee","left_ankle","right_eye","left_eye","right_ear","left_ear"];
 const LIMBS = [["neck","right_shoulder"],["neck","left_shoulder"],["right_shoulder","right_elbow"],["right_elbow","right_wrist"],["left_shoulder","left_elbow"],["left_elbow","left_wrist"],["neck","right_hip"],["right_hip","right_knee"],["right_knee","right_ankle"],["neck","left_hip"],["left_hip","left_knee"],["left_knee","left_ankle"],["neck","nose"],["nose","right_eye"],["right_eye","right_ear"],["nose","left_eye"],["left_eye","left_ear"]];
 const MIN_SCORE = 0.3;
+
+// The label map is a grayscale PNG with each instance's id in the red channel. Paint it as the
+// /live page does: a translucent fill per instance with an opaque one-pixel outline.
+async function decodeLabels(mask) {
+  const blob = await (await fetch(mask.data)).blob();
+  const bmp = await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+  const c = document.createElement("canvas");
+  c.width = mask.width; c.height = mask.height;
+  const cx = c.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close();
+  return cx.getImageData(0, 0, c.width, c.height);
+}
+
+function paintMask(ctx, labels, items) {
+  const { width: mw, height: mh, data } = labels;
+  const lut = new Map(items.map((it) => [it.instance_id, samColor(it.label)]));
+  const out = new ImageData(mw, mh);
+  const row = mw * 4;
+  for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+    const p = y * row + x * 4, id = data[p];
+    const hex = id && lut.get(id);
+    if (!hex) continue;
+    const edge = (x > 0 && data[p - 4] !== id) || (x < mw - 1 && data[p + 4] !== id) || (y > 0 && data[p - row] !== id) || (y < mh - 1 && data[p + row] !== id);
+    const v = parseInt(hex.slice(1), 16);
+    out.data[p] = v >> 16; out.data[p + 1] = (v >> 8) & 255; out.data[p + 2] = v & 255;
+    out.data[p + 3] = edge ? 255 : 115;
+  }
+  const layer = document.createElement("canvas");
+  layer.width = mw; layer.height = mh;
+  layer.getContext("2d").putImageData(out, 0, 0);
+  ctx.drawImage(layer, 0, 0, ctx.canvas.width, ctx.canvas.height);
+}
 
 function paint(ctx, body, w, h) {
   const items = Array.isArray(body.items) ? body.items : [];
@@ -311,7 +344,7 @@ function paint(ctx, body, w, h) {
     const [bx, by, bw, bh] = (item.bbox_xywh || [0, 0, 0, 0]).map((v, k) => v * (k % 2 ? h : w));
     if (item.kpts_xy) return pose(ctx, item, w, h, bh);
     if (!item.bbox_xywh) return;
-    const color = segment ? PALETTE[i % PALETTE.length] : classColor(item.label || "");
+    const color = segment ? samColor(item.label) : classColor(item.label || "");
     ctx.strokeStyle = color;
     ctx.lineWidth = segment ? 1.25 : 2;
     ctx.strokeRect(bx, by, bw, bh);

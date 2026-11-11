@@ -60,6 +60,9 @@ def _jpeg(frame: rtc.VideoFrame, max_width: int = 960) -> bytes:
 
 
 class VisionAgent:
+    # Top-level result fields passed through untrimmed (the demo draws SAM masks).
+    keep: tuple[str, ...] = ()
+
     def __init__(self, room: rtc.Room) -> None:
         self.room = room
         self.latest: rtc.VideoFrame | None = None
@@ -166,7 +169,7 @@ class VisionAgent:
 
     async def _publish(self, jpeg: bytes, event: dict, model: str, latency_ms: int, seq: int) -> None:
         """Post the result as JSON on the ``vision`` text stream."""
-        payload = observation(event, model=model, latency_ms=latency_ms)
+        payload = observation(event, model=model, latency_ms=latency_ms, keep=self.keep)
         payload["_vlmrun"]["seq"] = seq
         await self.room.local_participant.send_text(json.dumps(payload), topic=RESULT_TOPIC)
 
