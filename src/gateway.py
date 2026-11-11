@@ -8,6 +8,7 @@ the session is already busy.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -49,8 +50,14 @@ def _trim(value: object) -> object:
     return value
 
 
-def observation(event: dict[str, Any], *, model: str, latency_ms: int) -> dict[str, Any]:
-    """The model's JSON for one frame, plus the timing the demo prints."""
+def observation(
+    event: dict[str, Any], *, model: str, latency_ms: float, keep: tuple[str, ...] = ()
+) -> dict[str, Any]:
+    """The model's JSON for one frame, plus the timing the demo prints.
+
+    Long strings are trimmed to keep the data channel small; ``keep`` names top-level
+    fields (such as a SAM ``mask``) that are passed through whole.
+    """
     content = message_content(event.get("response"))
     if isinstance(content, str):
         try:
@@ -62,6 +69,7 @@ def observation(event: dict[str, Any], *, model: str, latency_ms: int) -> dict[s
     body = _trim(content)
     if not isinstance(body, dict):
         body = {"value": body}
+    body.update({k: content[k] for k in keep if k in content})
     body["_vlmrun"] = {
         "model": model,
         "latency_ms": latency_ms,
@@ -115,12 +123,20 @@ class GatewaySession:
             raise RuntimeError(f"expected session.created, got {created.get('type')}")
         self.max_fps = float(created.get("max_fps") or 0)
 
-    async def send_jpeg(self, jpeg: bytes) -> dict[str, Any] | None:
-        """Send one frame. ``None`` means the server dropped it."""
+    async def send_jpeg(self, jpeg: bytes, timeout: float = 5.0) -> dict[str, Any] | None:
+        """Send one frame. ``None`` means the server dropped it.
+
+        Raises ``TimeoutError`` when no reply arrives within ``timeout`` seconds; the
+        session should then be closed, since a late reply would answer the wrong frame.
+        """
         if self._ws is None:
             raise RuntimeError("session is not open")
         await self._ws.send(jpeg)
-        event = json.loads(await self._ws.recv())
+        try:
+            raw = await asyncio.wait_for(self._ws.recv(), timeout)
+        except asyncio.TimeoutError:
+            raise TimeoutError(f"no reply for the frame within {timeout:g}s") from None
+        event = json.loads(raw)
         kind = event.get("type")
         if kind == "frame.dropped":
             return None
