@@ -25,9 +25,11 @@ uv sync --extra dev
 In two terminals:
 
 ```bash
-uv run src/agent.py dev
+uv run src/demo.py dev     # agent.py plus the model picker and overlay the page uses
 uv run frontend/serve.py
 ```
+
+`src/agent.py` on its own is the minimal worker: it posts each result on the `vision` topic and nothing else. Start from that file in your own app.
 
 Open http://localhost:8080 and click **Share camera** or **Share screen**.
 

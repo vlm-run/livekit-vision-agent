@@ -10,10 +10,10 @@ tasks:
       - "uv sync --extra dev"
 
   dev:
-    desc: "Run the agent worker"
+    desc: "Run the agent worker with the demo page support"
     interactive: true
     cmds:
-      - "uv run src/agent.py dev"
+      - "uv run src/demo.py dev"
 
   frontend:
     desc: "Serve the camera demo at http://localhost:8080"

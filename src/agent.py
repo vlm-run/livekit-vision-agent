@@ -70,7 +70,6 @@ class VisionAgent:
         self._seq = 0
 
     async def start(self) -> None:
-        self.room.register_text_stream_handler("control", self._on_control)
         self.room.on("track_subscribed", self._on_track)
         self.room.on("track_unsubscribed", self._on_track_gone)
         for participant in self.room.remote_participants.values():
@@ -78,9 +77,6 @@ class VisionAgent:
                 if publication.track and publication.track.kind == rtc.TrackKind.KIND_VIDEO:
                     self._watch(publication.track)
         await self._analysis_loop()
-
-    def _on_control(self, reader: rtc.TextStreamReader, _participant: str) -> None:
-        self._track_task(asyncio.create_task(self._apply_control(reader)))
 
     def _track_task(self, task: asyncio.Task[None]) -> None:
         # Keep a reference so the task isn't garbage-collected mid-run.
@@ -91,20 +87,6 @@ class VisionAgent:
         """Offer a new frame; it replaces any frame not yet sent."""
         self.latest = frame
         self._new_frame.set()
-
-    async def _apply_control(self, reader: rtc.TextStreamReader) -> None:
-        try:
-            body = json.loads(await reader.read_all())
-        except Exception:
-            logger.exception("control message")
-            return
-        model = str(body.get("model") or "").strip()
-        if not model:
-            return
-        method = str(body.get("method") or "")
-        prompt = str(body.get("prompt") or "")
-        self._want = (model, method, prompt)
-        logger.info("model request %s method=%s", model, method or "(default)")
 
     def _on_track(
         self,
@@ -182,17 +164,11 @@ class VisionAgent:
         return session
 
     async def _publish(self, jpeg: bytes, event: dict, model: str, latency_ms: int) -> None:
-        """The frame goes first, so the page draws the result on the JPEG the model saw."""
+        """Post the result as JSON on the ``vision`` text stream."""
         self._seq += 1
-        frame_id = str(self._seq)
         payload = observation(event, model=model, latency_ms=latency_ms)
         payload["_vlmrun"]["seq"] = self._seq
-        me = self.room.local_participant
-        await me.send_bytes(
-            jpeg, topic="frame", name=frame_id, mime_type="image/jpeg",
-            attributes={"frame": frame_id}, compress=False,
-        )
-        await me.send_text(json.dumps(payload), topic=RESULT_TOPIC)
+        await self.room.local_participant.send_text(json.dumps(payload), topic=RESULT_TOPIC)
 
     async def _analysis_loop(self) -> None:
         api_key = os.environ.get("VLMRUN_API_KEY", "")
@@ -252,10 +228,16 @@ class VisionAgent:
             await drop_session()
 
 
-async def entrypoint(ctx: JobContext) -> None:
-    await ctx.connect(auto_subscribe=AutoSubscribe.VIDEO_ONLY)
-    logger.info("joined %s", ctx.room.name)
-    await VisionAgent(ctx.room).start()
+def make_entrypoint(agent_cls: type[VisionAgent] = VisionAgent):
+    async def entrypoint(ctx: JobContext) -> None:
+        await ctx.connect(auto_subscribe=AutoSubscribe.VIDEO_ONLY)
+        logger.info("joined %s", ctx.room.name)
+        await agent_cls(ctx.room).start()
+
+    return entrypoint
+
+
+entrypoint = make_entrypoint()
 
 
 if __name__ == "__main__":
