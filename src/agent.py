@@ -32,7 +32,7 @@ logger = logging.getLogger("vlmrun-vision")
 
 GATEWAY_WS = os.environ.get("VLMRUN_GATEWAY_WS", "wss://gateway.vlm.run/v1/ws")
 MODEL = os.environ.get("VLMRUN_MODEL", "usyd-community/vitpose-plus-large")
-METHOD = os.environ.get("VLMRUN_METHOD", "pose")
+METHOD = os.environ.get("VLMRUN_METHOD", "")  # empty: the model's default method
 PROMPT = os.environ.get("VLMRUN_PROMPT", "")
 # JSON for the method, e.g. {"bbox_xywh": [0.1, 0.1, 0.4, 0.5]} for SAM segment_box.
 PARAMS = os.environ.get("VLMRUN_PARAMS", "")
