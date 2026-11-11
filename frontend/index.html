@@ -44,7 +44,15 @@ if (!crypto.randomUUID) {
   .metrics { display:flex; gap:32px; padding:14px 2px 0; }
   .metrics b { display:block; font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
   .metrics span { color:var(--muted); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
-  select { width:100%; background:var(--background); border:1px solid var(--border); color:var(--foreground); border-radius:var(--radius); padding:7px 10px; font:inherit; }
+  .clips { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .clip { background:none; border:0; padding:0; color:var(--foreground); text-align:left; cursor:pointer; font:inherit; font-size:12px; }
+  .clip video { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; border-radius:var(--radius); background:hsl(224 10% 10%); box-shadow:0 0 0 1px var(--border); pointer-events:none; }
+  .clip:hover video { box-shadow:0 0 0 1px var(--muted); }
+  .clip[aria-pressed=true] video { box-shadow:0 0 0 2px var(--primary); }
+  .clip span { display:block; margin-top:4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  details { margin-top:12px; }
+  summary { cursor:pointer; color:var(--primary); font-size:13px; }
+  details .clips { margin-top:10px; }
   .models { display:flex; flex-wrap:wrap; gap:6px; }
   .models button { background:none; border:1px solid var(--border); color:var(--foreground); border-radius:var(--radius); padding:6px 12px; font:inherit; cursor:pointer; }
   .models button:hover { border-color:var(--muted); }
@@ -93,8 +101,12 @@ if (!crypto.randomUUID) {
       <input id="prompt" placeholder="prompt" hidden>
     </section>
     <section class="card">
-      <p class="caps">Clip</p>
-      <select id="clips"><option value="" disabled selected>Choose a clip…</option></select>
+      <p class="caps">Clips</p>
+      <div class="clips" id="clips"></div>
+      <details id="more">
+        <summary>More examples</summary>
+        <div class="clips" id="moreClips"></div>
+      </details>
     </section>
   </div>
   <section class="card logs">
@@ -152,8 +164,23 @@ const fields = (o) => Object.entries(o).filter(([k]) => k !== "event").map(([k, 
 function say(text, live) { statusEl.textContent = text; statusEl.classList.toggle("live", !!live); }
 
 // ---- controls
-CLIPS.forEach((c, i) => $("clips").append(new Option(c[0], i)));
-$("clips").onchange = (e) => play(CLIPS[Number(e.target.value)]);
+const SHOWN = 4;  // the rest fold out under "More examples"
+function tile(c) {
+  const b = document.createElement("button");
+  b.className = "clip";
+  b.dataset.clip = c[0];
+  b.innerHTML = `<video src="${BASE + c[1]}#t=1" preload="metadata" muted playsinline crossorigin="anonymous"></video><span>${c[0]}</span>`;
+  b.onclick = () => play(c);
+  return b;
+}
+CLIPS.slice(0, SHOWN).forEach((c) => $("clips").append(tile(c)));
+// Built on first open, so the hidden thumbnails don't download until asked for.
+$("more").addEventListener("toggle", () => {
+  if ($("more").open && !$("moreClips").childElementCount) {
+    CLIPS.slice(SHOWN).forEach((c) => $("moreClips").append(tile(c)));
+    mark();
+  }
+}, { once: false });
 MODELS.forEach((m) => {
   const b = document.createElement("button");
   b.textContent = m[0];
@@ -162,7 +189,7 @@ MODELS.forEach((m) => {
   $("models").append(b);
 });
 function mark() {
-  if (clip) $("clips").value = CLIPS.indexOf(clip);
+  for (const b of document.querySelectorAll(".clip")) b.setAttribute("aria-pressed", !!clip && b.dataset.clip === clip[0]);
   for (const b of $("models").children) b.setAttribute("aria-pressed", b.dataset.model === model[1]);
   promptEl.hidden = !model[3];
 }
@@ -190,6 +217,7 @@ async function sendControl() {
 async function play(c) {
   clip = c;
   mark();
+  $("empty").textContent = "Waiting for the first result…";
   try {
     const r = await connect();
     await unpublish();
@@ -245,6 +273,9 @@ async function connect() {
     try {
       const e = JSON.parse(await reader.readAll());
       log(e.event, fields(e));
+      // Say why nothing is showing: the gateway refuses a model that is at capacity.
+      if (e.event === "session.failed") say(`${e.error} Retrying in ${e.retry_s}s`);
+      if (e.event === "session.open" && clip) say(`${clip[0]} · ${model[0]}`, true);
     } catch {}
   });
   r.on(RoomEvent.Disconnected, () => { room = null; say("disconnected"); log("session.close", "room disconnected"); });
