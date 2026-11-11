@@ -166,7 +166,7 @@ async def test_result_is_published_on_the_vision_topic():
     assert payload["_vlmrun"]["model"] == agent.MODEL
     assert payload["_vlmrun"]["frame"] == 1
     assert payload["_vlmrun"]["gateway_ms"] == 45.0
-    assert isinstance(payload["_vlmrun"]["latency_ms"], int)
+    assert isinstance(payload["_vlmrun"]["latency_ms"], float)
 
 
 
@@ -216,11 +216,11 @@ async def test_missing_api_key_fails_fast(monkeypatch):
         await agent.VisionAgent(FakeRoom())._analysis_loop()  # type: ignore[arg-type]
 
 
-def test_wide_frames_are_scaled_to_640_pixels():
+def test_wide_frames_are_scaled_to_960_pixels():
     jpeg = agent._jpeg(rgb_frame(1920, 1080))
     image = Image.open(io.BytesIO(jpeg))
     assert image.format == "JPEG"
-    assert image.size == (640, 360)
+    assert image.size == (960, 540)
 
 
 

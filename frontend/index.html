@@ -55,7 +55,7 @@ if (!crypto.randomUUID) {
   .models button[aria-pressed=true] { background:var(--primary); border-color:var(--primary); }
   input { width:100%; margin-top:10px; background:var(--background); border:1px solid var(--border); color:var(--foreground); border-radius:var(--radius); padding:7px 10px; font:inherit; }
   input:focus-visible, button:focus-visible { outline:2px solid var(--primary-soft); outline-offset:1px; }
-  .logs { grid-column:1/-1; }
+  .logs, .result { grid-column:1/-1; }
   .logs .scroll { max-height:260px; overflow:auto; }
   table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
   th { text-align:left; color:var(--muted); font-weight:500; padding:0 10px 6px 0; position:sticky; top:0; background:var(--card); }
@@ -64,8 +64,7 @@ if (!crypto.randomUUID) {
   td.k { white-space:nowrap; width:1%; }
   .tag { display:inline-block; padding:1px 7px; border-radius:99px; font-size:11px; border:1px solid currentColor; }
   td.d { color:var(--muted); word-break:break-word; }
-  details summary { cursor:pointer; }
-  pre { margin:10px 0 0; max-height:240px; overflow:auto; font:12px/1.5 ui-monospace,monospace; color:var(--muted); white-space:pre-wrap; word-break:break-word; }
+  pre { margin:0; max-height:240px; overflow:auto; font:12px/1.5 ui-monospace,monospace; color:var(--muted); white-space:pre-wrap; word-break:break-word; }
 </style>
 </head>
 <body>
@@ -96,13 +95,11 @@ if (!crypto.randomUUID) {
       <p class="caps">Clips</p>
       <div class="clips" id="clips"></div>
     </section>
-    <section class="card">
-      <details>
-        <summary class="caps" style="margin:0">Result JSON</summary>
-        <pre id="json">waiting for the agent</pre>
-      </details>
-    </section>
   </div>
+  <section class="card result">
+    <p class="caps">Result JSON</p>
+    <pre id="json">waiting for the agent</pre>
+  </section>
   <section class="card logs">
     <p class="caps">Logs</p>
     <div class="scroll">
@@ -120,6 +117,7 @@ const CLIPS = [
   ["Pallet jack aisle", "hub/examples/video/warehouse-pallet-jack-aisle.mp4"],
   ["Reach truck, hi-vis", "hub/examples/video/warehouse-reach-truck-hivis-aisle.mp4"],
   ["Drill press", "hub/examples/video/manufacturing-drill-press-machining.mp4"],
+  ["Drone, solar farm", "hub/examples/video/drone-solar-farm-inspection.mp4"],
   ["Pipe welding", "hub/examples/video/industrial-pipe-welding-inspection.mp4"],
   ["Robot manipulation", "hub/examples/video.agent/robotics_manipulation_tracking.mp4"],
   ["Dashcam", "hub/examples/video.dashcam/00914.mp4"],
@@ -208,7 +206,15 @@ async function play(c) {
     await src.play();
     const stream = (src.captureStream || src.mozCaptureStream).call(src);
     track = new LocalVideoTrack(stream.getVideoTracks()[0]);
-    await r.localParticipant.publishTrack(track, { simulcast: false, source: Track.Source.Camera });
+    // Keep the clip's resolution: the model sees what the encoder sends, and WebRTC
+    // otherwise starts small and sheds pixels under load.
+    track.mediaStreamTrack.contentHint = "detail";
+    await r.localParticipant.publishTrack(track, {
+      simulcast: false,
+      source: Track.Source.Camera,
+      videoEncoding: { maxBitrate: 4_000_000, maxFramerate: 30 },
+      degradationPreference: "maintain-resolution",
+    });
     log("clip", `${c[0]} published`);
     await sendControl();
   } catch (err) {
@@ -241,7 +247,7 @@ async function connect() {
     $("json").textContent = JSON.stringify(body, null, 2);
     const meta = body._vlmrun || {};
     if (meta.latency_ms != null) metrics(meta.latency_ms);
-    log("result", `#${meta.seq}  ${meta.latency_ms} ms  gateway ${meta.gateway_ms != null ? Math.round(meta.gateway_ms) : "–"} ms  ${Array.isArray(body.items) ? body.items.length + " items" : "text"}`);
+    log("result", `#${meta.seq}  ${Number(meta.latency_ms).toFixed(1)} ms  gateway ${meta.gateway_ms != null ? Number(meta.gateway_ms).toFixed(1) : "–"} ms  ${Array.isArray(body.items) ? body.items.length + " items" : "text"}`);
     if (meta.seq != null) { results.set(String(meta.seq), body); draw(String(meta.seq)); }
   });
   r.registerTextStreamHandler("log", async (reader) => {
@@ -264,8 +270,8 @@ function metrics(ms) {
   const now = performance.now(); stamps.push(now);
   while (stamps[0] < now - 5000) stamps.shift();
   const sorted = [...latencies].sort((a, b) => a - b);
-  $("last").textContent = ms;
-  $("p50").textContent = sorted[sorted.length >> 1];
+  $("last").textContent = ms.toFixed(1);
+  $("p50").textContent = sorted[sorted.length >> 1].toFixed(1);
   $("fps").textContent = (stamps.length / Math.min(5, (now - stamps[0]) / 1000 || 1)).toFixed(1);
 }
 
