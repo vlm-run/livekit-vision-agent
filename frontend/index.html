@@ -164,7 +164,7 @@ const fields = (o) => Object.entries(o).filter(([k]) => k !== "event").map(([k, 
 function say(text, live) { statusEl.textContent = text; statusEl.classList.toggle("live", !!live); }
 
 // ---- controls
-const SHOWN = 4;  // the rest fold out under "More examples"
+const SHOWN = 8;  // four rows of two; the rest fold out under "More examples"
 function tile(c) {
   const b = document.createElement("button");
   b.className = "clip";
