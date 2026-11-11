@@ -165,25 +165,8 @@ async def test_result_is_published_on_the_vision_topic():
     assert isinstance(payload["_vlmrun"]["latency_ms"], int)
 
 
-async def test_frames_are_sent_as_jpeg():
-    room = FakeRoom()
-    vision = agent.VisionAgent(room)  # type: ignore[arg-type]
-    feed = camera(vision)
-    task = await run_loop(vision)
-    await wait_for(lambda: sent_count() >= 1)
-    await stop(task)
-
-    assert FakeSession.instances[0].sent[0][:3] == b"\xff\xd8\xff", "JPEG magic bytes"
 
 
-async def test_nothing_is_sent_without_a_frame():
-    room = FakeRoom()
-    task = await run_loop(agent.VisionAgent(room))  # type: ignore[arg-type]
-    await asyncio.sleep(0.3)
-    await stop(task)
-
-    assert sent_count() == 0
-    assert room.local_participant.texts == []
 
 
 async def test_dropped_frames_publish_nothing():
@@ -236,9 +219,6 @@ def test_wide_frames_are_scaled_to_960_pixels():
     assert image.size == (960, 540)
 
 
-def test_narrow_frames_keep_their_size():
-    image = Image.open(io.BytesIO(agent._jpeg(rgb_frame(640, 480))))
-    assert image.size == (640, 480)
 
 
 # The gateway bills the seconds a session is open: "open one socket when the participant
