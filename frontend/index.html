@@ -3,377 +3,427 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VLM Run × LiveKit</title>
+<title>Live vision · LiveKit × VLM Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+// livekit-client calls crypto.randomUUID, which browsers only define on https or localhost.
+if (!crypto.randomUUID) {
+  crypto.randomUUID = () => "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+    (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
+}
+</script>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <style>
-  :root { color-scheme: dark; }
+  html { color-scheme: light; }
+  :root {
+    --background: hsl(224 1% 100%); --card: hsl(224 1% 100%); --border: hsl(60 2% 88%);
+    --foreground: hsl(224 1% 10%); --muted: hsl(0 0% 40%); --primary: hsl(224 76.3% 48%);
+    --primary-soft: hsl(224 76.3% 48%); --radius: .4rem;
+  }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh; background: #0b0d12; color: #e8eaf0;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  header { padding: 20px 28px; border-bottom: 1px solid #1d2230; display: flex; align-items: baseline; gap: 12px; }
-  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
-  header span { color: #8b93a7; font-size: 13px; }
-  main { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; padding: 24px 28px; max-width: 1200px; margin: 0 auto; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .panel { background: #10131b; border: 1px solid #1d2230; border-radius: 12px; overflow: hidden; }
-  .panel h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8b93a7; margin: 0; padding: 12px 16px; border-bottom: 1px solid #1d2230; }
-  .stage { position: relative; background: #000; aspect-ratio: 16/9; }
-  #view { width: 100%; height: 100%; display: none; object-fit: contain; background: #000; }
-  .stage.matched #view { display: block; }
-  .pip { width: 100%; height: 100%; }
-  .pip video { width: 100%; height: 100%; background: #000; display: block; object-fit: contain; }
-  .pip span { display: none; }
-  .stage.matched .pip {
-    position: absolute; right: 12px; bottom: 12px; width: 26%; height: auto;
-    border-radius: 8px; overflow: hidden; border: 1px solid #2a3144;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
-  }
-  .stage.matched .pip video { aspect-ratio: 16/9; object-fit: cover; }
-  .stage.matched .pip span {
-    display: block; position: absolute; left: 8px; bottom: 8px;
-    font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #e8eaf0;
-    background: rgba(11, 13, 18, .72); border-radius: 4px; padding: 2px 6px;
-  }
-  .controls { padding: 14px 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  button {
-    background: #2450ff; color: #fff; border: 0; border-radius: 8px; padding: 9px 16px;
-    font-size: 14px; font-weight: 500; cursor: pointer;
-  }
-  button.secondary { background: #1d2230; }
-  button:disabled { opacity: .45; cursor: default; }
-  select, input {
-    background: #1d2230; color: #e8eaf0; border: 0; border-radius: 8px;
-    padding: 9px 12px; font-size: 14px;
-  }
-  input { width: 140px; }
-  #status { font-size: 13px; color: #8b93a7; margin-left: auto; }
-  #latest {
-    margin: 0; padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
-    white-space: pre-wrap; word-break: break-word; min-height: 160px; color: #7ee787;
-  }
-  #log { padding: 0 16px 16px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #8b93a7; max-height: 280px; overflow-y: auto; }
-  #log div { padding: 6px 0; border-top: 1px solid #161a26; }
+  body { margin:0; background:var(--background); color:var(--foreground); font:14px/1.45 Inter,system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  header { display:flex; align-items:center; gap:10px; padding:12px 24px; border-bottom:1px solid var(--border); }
+  header img { display:block; }
+  header .sub { color:var(--muted); }
+  #status { margin-left:auto; display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+  #status::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--muted); }
+  #status.live::before { background:var(--primary-soft); box-shadow:0 0 0 3px hsl(224 76.3% 48% / .2); }
+  main { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:20px; padding:20px 24px; max-width:1400px; margin:auto; }
+  @media (max-width:960px) { main { grid-template-columns:1fr; } }
+  .caps { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:500; margin:0 0 10px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
+  .rail { display:flex; flex-direction:column; gap:20px; min-width:0; }
+  .stage { position:relative; aspect-ratio:16/9; background:hsl(224 10% 10%); border-radius:var(--radius); overflow:hidden; }
+  .stage canvas, .stage video.main { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  .pip { position:absolute; right:12px; bottom:12px; width:22%; aspect-ratio:16/9; border-radius:var(--radius); overflow:hidden; border:1px solid hsl(0 0% 100% / .25); background:#000; }
+  .pip video { width:100%; height:100%; object-fit:cover; display:block; }
+  .pip span { position:absolute; left:6px; top:5px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#fff; text-shadow:0 0 4px #000; }
+  .empty[hidden] { display:none; }
+  .empty { position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); }
+  .metrics { display:flex; gap:32px; padding:14px 2px 0; }
+  .metrics b { display:block; font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .metrics span { color:var(--muted); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+  .clips { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .clip { background:none; border:0; padding:0; color:var(--foreground); text-align:left; cursor:pointer; font:inherit; font-size:12px; }
+  .clip video { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; border-radius:var(--radius); background:hsl(224 10% 10%); box-shadow:0 0 0 1px var(--border); pointer-events:none; }
+  .clip:hover video { box-shadow:0 0 0 1px var(--muted); }
+  .clip[aria-pressed=true] video { box-shadow:0 0 0 2px var(--primary); }
+  .clip span { display:block; margin-top:4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  details { margin-top:12px; }
+  summary { cursor:pointer; color:var(--primary); font-size:13px; }
+  details .clips { margin-top:10px; }
+  .models { display:flex; flex-wrap:wrap; gap:6px; }
+  .models button { background:none; border:1px solid var(--border); color:var(--foreground); border-radius:var(--radius); padding:6px 12px; font:inherit; cursor:pointer; }
+  .models button:hover { border-color:var(--muted); }
+  .models button[aria-pressed=true] { background:var(--primary); border-color:var(--primary); color:#fff; }
+  input { width:100%; margin-top:10px; background:var(--background); border:1px solid var(--border); color:var(--foreground); border-radius:var(--radius); padding:7px 10px; font:inherit; }
+  input:focus-visible, button:focus-visible { outline:2px solid var(--primary-soft); outline-offset:1px; }
+  .logs { grid-column:1/-1; }
+  .result { margin-top:16px; }
+  .logs .scroll { max-height:260px; overflow:auto; }
+  table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+  th { text-align:left; color:var(--muted); font-weight:500; padding:0 10px 6px 0; position:sticky; top:0; background:var(--card); }
+  td { padding:4px 10px 4px 0; border-top:1px solid var(--border); vertical-align:top; }
+  td.t { color:var(--muted); white-space:nowrap; width:1%; }
+  td.k { white-space:nowrap; width:1%; }
+  .tag { display:inline-block; padding:1px 7px; border-radius:99px; font-size:11px; border:1px solid currentColor; }
+  td.d { color:var(--muted); word-break:break-word; }
+  pre { margin:0; max-height:240px; overflow:auto; font:12px/1.5 ui-monospace,monospace; color:var(--muted); white-space:pre-wrap; word-break:break-word; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Live vision</h1>
-  <span>LiveKit camera → VLM Run WS /v1/ws → JSON</span>
+  <img src="vlm-blue.svg" alt="VLM Run" height="30"><span class="sub">Live vision on LiveKit</span>
+  <span id="status">pick a clip</span>
 </header>
 <main>
-  <section class="panel">
-    <h2>Model frame</h2>
-    <div class="stage" id="stage">
+  <div>
+    <div class="stage">
       <canvas id="view"></canvas>
-      <div class="pip">
-        <video id="preview" autoplay muted playsinline></video>
-        <span>live</span>
-      </div>
+      <div class="empty" id="empty">Pick a clip to start</div>
+      <div class="pip"><video id="src" muted loop playsinline crossorigin="anonymous"></video><span>source</span></div>
     </div>
-    <div class="controls">
-      <button id="camBtn">Share camera</button>
-      <button id="screenBtn" class="secondary">Share screen</button>
-      <button id="stopBtn" class="secondary" disabled>Stop</button>
-      <select id="model">
-        <option value="usyd-community/vitpose-plus-large" data-method="pose">ViTPose+</option>
-        <option value="geopavlakos/hamer" data-method="pose">HaMeR</option>
-        <option value="facebook/sam3.1" data-method="segment">SAM 3.1</option>
-        <option value="paddleocr/pp-ocrv6" data-method="ocr">PP-OCRv6</option>
-      </select>
-      <input id="prompt" placeholder="prompt">
-      <span id="status">disconnected</span>
+    <div class="metrics">
+      <div><b id="last">–</b><span>last ms</span></div>
+      <div><b id="p50">–</b><span>median ms</span></div>
+      <div><b id="fps">–</b><span>results / s</span></div>
     </div>
-  </section>
-  <section class="panel">
-    <h2>Structured output</h2>
-    <pre id="latest">waiting for the agent</pre>
-    <div id="log"></div>
+    <section class="card result">
+      <p class="caps">Result JSON</p>
+      <pre id="json">waiting for the agent</pre>
+    </section>
+  </div>
+  <div class="rail">
+    <section class="card">
+      <p class="caps">Model</p>
+      <div class="models" id="models"></div>
+      <input id="prompt" placeholder="prompt" hidden>
+    </section>
+    <section class="card">
+      <p class="caps">Clips</p>
+      <div class="clips" id="clips"></div>
+      <details id="more">
+        <summary>More examples</summary>
+        <div class="clips" id="moreClips"></div>
+      </details>
+    </section>
+  </div>
+  <section class="card logs">
+    <p class="caps">Logs</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead>
+        <tbody id="logs"></tbody>
+      </table>
+    </div>
   </section>
 </main>
 <script>
-const { Room, RoomEvent, createLocalVideoTrack, createLocalScreenTracks } = LivekitClient;
+const BASE = "https://storage.googleapis.com/vlm-data-public-prod/";
+const CLIPS = [
+  ["Drone, houses", "hub/examples/video.agent/drone_inspection.mp4"],
+  ["Physical AI", "hub/examples/robotics.agent/physical-ai.mp4"],
+  ["Warehouse forklifts", "hub/examples/video/warehouse-forklifts-yard-aerial.mp4"],
+  ["Pallet jack aisle", "hub/examples/video/warehouse-pallet-jack-aisle.mp4"],
+  ["Reach truck, hi-vis", "hub/examples/video/warehouse-reach-truck-hivis-aisle.mp4"],
+  ["Drone, solar farm", "hub/examples/video/drone-solar-farm-inspection.mp4"],
+  ["Robot manipulation", "hub/examples/video.agent/robotics_manipulation_tracking.mp4"],
+  ["Dashcam", "hub/examples/video.dashcam/00914.mp4"],
+  ["Home workout", "gw/examples/fitness-home-workout.mp4"],
+];
+// [label, model, method, default prompt ("" hides the prompt box)]
+const MODELS = [
+  ["Gemma 4 e2b", "google/gemma4-e2b-it:realtime", "chat", "Describe the frame in one sentence."],
+  ["ViTPose+", "usyd-community/vitpose-plus-large", "pose", ""],
+  ["RF-DETR", "roboflow/rfdetr-large", "detect", ""],
+  ["SAM 3.1", "facebook/sam3.1", "segment", "person"],
+];
+const { Room, RoomEvent, LocalVideoTrack, Track } = LivekitClient;
+const $ = (id) => document.getElementById(id);
+const src = $("src"), view = $("view"), promptEl = $("prompt"), statusEl = $("status");
 
-const statusEl = document.getElementById("status");
-const latestEl = document.getElementById("latest");
-const logEl = document.getElementById("log");
-const preview = document.getElementById("preview");
-const view = document.getElementById("view");
-const stage = document.getElementById("stage");
-const camBtn = document.getElementById("camBtn");
-const screenBtn = document.getElementById("screenBtn");
-const stopBtn = document.getElementById("stopBtn");
-const modelSelect = document.getElementById("model");
-const promptInput = document.getElementById("prompt");
-
-// COCO 17: nose, eyes, ears, shoulders, elbows, wrists, hips, knees, ankles.
-const BONES = [[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
-const HAND_BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
-const PERSON_COLORS = ["#7ee787", "#79c0ff", "#ffa657", "#d2a8ff", "#ff7b72"];
-
-let room = null;
-let publishedTrack = null;
-const frames = new Map();
-const poses = new Map();
+let room = null, track = null, clip = null, model = MODELS[0];
+const frames = new Map(), results = new Map();
 let shown = -1;
+const latencies = [], stamps = [];
 
-function usesPixels(items) {
-  for (const person of items) {
-    const pts = person.kpts_xy || [];
-    for (const pt of pts) {
-      if (pt && (pt[0] > 1.5 || pt[1] > 1.5)) return true;
-    }
+const TAGS = { connected: "#0d9488", clip: "#0284c7", model: "#9333ea", "session.start": "#ea580c", "session.open": "#16a34a",
+  "session.close": "#6b7280", "session.failed": "#dc2626", "frame.failed": "#dc2626", result: "#4f46e5", error: "#dc2626" };
+function log(kind, detail) {
+  const row = document.createElement("tr");
+  const color = TAGS[kind] || "#6b7280";
+  row.innerHTML = `<td class="t">${new Date().toLocaleTimeString([], { hour12: false })}</td>
+    <td class="k"><span class="tag" style="color:${color}">${kind}</span></td><td class="d"></td>`;
+  row.lastElementChild.textContent = detail;
+  $("logs").prepend(row);
+  while ($("logs").childElementCount > 150) $("logs").lastChild.remove();
+}
+const fields = (o) => Object.entries(o).filter(([k]) => k !== "event").map(([k, v]) => `${k}=${v}`).join("  ");
+
+function say(text, live) { statusEl.textContent = text; statusEl.classList.toggle("live", !!live); }
+
+// ---- controls
+const SHOWN = 8;  // four rows of two; the rest fold out under "More examples"
+function tile(c) {
+  const b = document.createElement("button");
+  b.className = "clip";
+  b.dataset.clip = c[0];
+  b.innerHTML = `<video src="${BASE + c[1]}#t=1" preload="metadata" muted playsinline crossorigin="anonymous"></video><span>${c[0]}</span>`;
+  b.onclick = () => play(c);
+  return b;
+}
+CLIPS.slice(0, SHOWN).forEach((c) => $("clips").append(tile(c)));
+// Built on first open, so the hidden thumbnails don't download until asked for.
+$("more").addEventListener("toggle", () => {
+  if ($("more").open && !$("moreClips").childElementCount) {
+    CLIPS.slice(SHOWN).forEach((c) => $("moreClips").append(tile(c)));
+    mark();
   }
-  return false;
+}, { once: false });
+MODELS.forEach((m) => {
+  const b = document.createElement("button");
+  b.textContent = m[0];
+  b.dataset.model = m[1];
+  b.onclick = () => pick(m);
+  $("models").append(b);
+});
+function mark() {
+  for (const b of document.querySelectorAll(".clip")) b.setAttribute("aria-pressed", !!clip && b.dataset.clip === clip[0]);
+  for (const b of $("models").children) b.setAttribute("aria-pressed", b.dataset.model === model[1]);
+  promptEl.hidden = !model[3];
 }
 
-function paintPose(ctx, body, width, height) {
-  const items = Array.isArray(body.items) ? body.items : [];
-  const pixels = usesPixels(items);
-  const point = (pt) => pixels ? [pt[0], pt[1]] : [pt[0] * width, pt[1] * height];
-  items.forEach((person, index) => {
-    const color = PERSON_COLORS[index % PERSON_COLORS.length];
-    const box = person.bbox_xywh;
-    if (box && box.length >= 4) {
-      const [x, y] = point([box[0], box[1]]);
-      const [r, b] = point([box[0] + box[2], box[1] + box[3]]);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, r - x, b - y);
-    }
-    const poly = person.poly_xy;
-    if (Array.isArray(poly) && poly.length >= 2) {
-      ctx.beginPath();
-      poly.forEach((pt, i) => {
-        const [x, y] = point(pt);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.closePath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-    const caption = person.text || (person.label && person.label !== "person" ? person.label : "");
-    if (caption && box && box.length >= 4) {
-      const [x, y] = point([box[0], box[1]]);
-      ctx.font = "16px ui-sans-serif, system-ui, sans-serif";
-      ctx.fillStyle = color;
-      ctx.fillText(String(caption), x + 4, Math.max(18, y - 6));
-    }
-    const pts = person.kpts_xy || [];
-    const scores = person.kpts_score || [];
-    const visible = (i) => pts[i] && (scores[i] == null || scores[i] >= 0.3);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = color;
-    ctx.lineCap = "round";
-    const bones = pts.length >= 21 ? HAND_BONES : BONES;
-    for (const [a, b] of bones) {
-      if (!visible(a) || !visible(b)) continue;
-      const [x1, y1] = point(pts[a]);
-      const [x2, y2] = point(pts[b]);
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    }
-    pts.forEach((pt, i) => {
-      if (!visible(i)) return;
-      const [x, y] = point(pt);
-      ctx.beginPath();
-      ctx.fillStyle = "#0b0d12";
-      ctx.arc(x, y, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.fillStyle = color;
-      ctx.arc(x, y, 3, 0, Math.PI * 2);
-      ctx.fill();
+async function pick(m) {
+  model = m;
+  promptEl.value = m[3];
+  mark();
+  await sendControl();
+}
+promptEl.onchange = sendControl;
+
+async function sendControl() {
+  if (!room || room.state !== "connected" || !clip) return;
+  shown = -1;
+  frames.clear(); results.clear();
+  await room.localParticipant.sendText(
+    JSON.stringify({ model: model[1], method: model[2], prompt: promptEl.value.trim() }),
+    { topic: "control" });
+  log("model", `${model[1]} · ${model[2]}${promptEl.value.trim() ? " · " + promptEl.value.trim() : ""}`);
+  say(`${clip[0]} · ${model[0]}`, true);
+}
+
+// ---- publish the playing clip as the room's camera
+async function play(c) {
+  clip = c;
+  mark();
+  $("empty").textContent = "Waiting for the first result…";
+  try {
+    const r = await connect();
+    await unpublish();
+    src.src = BASE + c[1];
+    await src.play();
+    const stream = (src.captureStream || src.mozCaptureStream).call(src);
+    track = new LocalVideoTrack(stream.getVideoTracks()[0]);
+    // Keep the clip's resolution: the model sees what the encoder sends, and WebRTC
+    // otherwise starts small and sheds pixels under load.
+    track.mediaStreamTrack.contentHint = "detail";
+    await r.localParticipant.publishTrack(track, {
+      simulcast: false,
+      source: Track.Source.Camera,
+      videoEncoding: { maxBitrate: 4_000_000, maxFramerate: 30 },
+      degradationPreference: "maintain-resolution",
     });
-  });
-  const latency = body._vlmrun && body._vlmrun.latency_ms;
-  if (latency != null) {
-    const model = (body._vlmrun && body._vlmrun.model) || "";
-    const short = model.split("/").pop() || "model";
-    const label = short + " · " + items.length + " · " + latency + " ms";
-    ctx.font = "13px ui-sans-serif, system-ui, sans-serif";
-    const pad = 8;
-    const tw = ctx.measureText(label).width;
-    ctx.fillStyle = "rgba(11, 13, 18, 0.72)";
-    ctx.fillRect(10, 10, tw + pad * 2, 24);
-    ctx.fillStyle = "#e8eaf0";
-    ctx.fillText(label, 10 + pad, 26);
+    log("clip", `${c[0]} published`);
+    await sendControl();
+  } catch (err) {
+    log("error", err.message || String(err));
+    say("error: " + (err.message || err));
   }
 }
-
-function dropOlder(id) {
-  for (const key of [...frames.keys()]) {
-    if (Number(key) < id) {
-      const bitmap = frames.get(key);
-      if (bitmap && bitmap.close) bitmap.close();
-      frames.delete(key);
-    }
-  }
-  for (const key of [...poses.keys()]) {
-    if (Number(key) < id) poses.delete(key);
-  }
+async function unpublish() {
+  if (!track) return;
+  await room.localParticipant.unpublishTrack(track);
+  track = null;
 }
 
-function showPair(id) {
-  const bitmap = frames.get(id);
-  const body = poses.get(id);
-  if (!bitmap || !body || Number(id) < shown) return;
-  shown = Number(id);
-  if (view.width !== bitmap.width || view.height !== bitmap.height) {
-    view.width = bitmap.width;
-    view.height = bitmap.height;
-  }
-  const ctx = view.getContext("2d");
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(bitmap, 0, 0);
-  paintPose(ctx, body, bitmap.width, bitmap.height);
-  stage.classList.add("matched");
-  dropOlder(shown);
-}
-
-async function readBytes(reader) {
-  if (typeof reader.readAll === "function") {
-    const data = await reader.readAll();
-    if (data instanceof Uint8Array) return data;
-    const parts = Array.isArray(data) ? data : [];
-    const size = parts.reduce((n, chunk) => n + chunk.byteLength, 0);
-    const out = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of parts) {
-      out.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return out;
-  }
-  const parts = [];
-  for await (const chunk of reader) parts.push(chunk);
-  const size = parts.reduce((n, chunk) => n + chunk.byteLength, 0);
-  const out = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of parts) {
-    out.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return out;
-}
-
+// ---- the agent sends the JPEG the model saw, then its JSON; they pair up by seq
 async function connect() {
   if (room) return room;
-  const res = await fetch("/token");
-  if (!res.ok) throw new Error("token failed (" + res.status + ")");
-  const { url, token } = await res.json();
-  room = new Room({ adaptiveStream: false, dynacast: false });
-  room.registerByteStreamHandler("frame", async (reader) => {
+  const { url, token } = await (await fetch("/token")).json();
+  const r = new Room({ adaptiveStream: false, dynacast: false });
+  r.registerByteStreamHandler("frame", async (reader) => {
     const info = reader.info || {};
     const id = String((info.attributes && info.attributes.frame) || info.name || "");
-    if (!id || (shown >= 0 && Number(id) < shown)) return;
-    const bytes = await readBytes(reader);
-    const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/jpeg" }));
-    const previous = frames.get(id);
-    if (previous && previous.close) previous.close();
-    frames.set(id, bitmap);
-    showPair(id);
+    if (!id || Number(id) < shown) return;
+    const parts = await reader.readAll();
+    frames.set(id, await createImageBitmap(new Blob(Array.isArray(parts) ? parts : [parts], { type: "image/jpeg" })));
+    draw(id);
   });
-  room.registerTextStreamHandler("vision", async (reader) => {
-    const text = await reader.readAll();
-    let pretty = text;
-    let latency = "";
+  r.registerTextStreamHandler("vision", async (reader) => {
+    let body;
+    try { body = JSON.parse(await reader.readAll()); } catch { return; }
+    $("json").textContent = JSON.stringify(body, (k, v) => (k === "data" && typeof v === "string" && v.length > 200 ? `<${v.length} chars>` : v), 2);
+    const meta = body._vlmrun || {};
+    if (meta.latency_ms != null) metrics(meta.latency_ms);
+    log("result", `#${meta.seq}  ${Number(meta.latency_ms).toFixed(1)} ms  gateway ${meta.gateway_ms != null ? Number(meta.gateway_ms).toFixed(1) : "–"} ms  ${Array.isArray(body.items) ? body.items.length + " items" : "text"}`);
+    if (meta.seq != null) { results.set(String(meta.seq), body); draw(String(meta.seq)); }
+  });
+  r.registerTextStreamHandler("log", async (reader) => {
     try {
-      const body = JSON.parse(text);
-      latency = body._vlmrun && body._vlmrun.latency_ms != null ? body._vlmrun.latency_ms + " ms" : "";
-      pretty = JSON.stringify(body, null, 2);
-      const id = String(body._vlmrun && body._vlmrun.seq != null ? body._vlmrun.seq : "");
-      if (id && !(shown >= 0 && Number(id) < shown)) {
-        poses.set(id, body);
-        showPair(id);
-      }
-    } catch (err) {}
-    latestEl.textContent = latency ? latency + "\n\n" + pretty : pretty;
-    const entry = document.createElement("div");
-    entry.textContent = new Date().toLocaleTimeString() + (latency ? " · " + latency : "");
-    logEl.prepend(entry);
-    while (logEl.childElementCount > 40) logEl.lastChild.remove();
+      const e = JSON.parse(await reader.readAll());
+      log(e.event, fields(e));
+      // Say why nothing is showing: the gateway refuses a model that is at capacity.
+      if (e.event === "session.failed") say(`${e.error} Retrying in ${e.retry_s}s`);
+      if (e.event === "session.open" && clip) say(`${clip[0]} · ${model[0]}`, true);
+    } catch {}
   });
-  room.on(RoomEvent.Disconnected, () => { statusEl.textContent = "disconnected"; room = null; });
-  await room.connect(url, token);
-  statusEl.textContent = "connected · " + room.name;
-  return room;
+  r.on(RoomEvent.Disconnected, () => { room = null; say("disconnected"); log("session.close", "room disconnected"); });
+  // The agent joins after the page does; hand it the current choice when it arrives.
+  r.on(RoomEvent.ParticipantConnected, () => sendControl());
+  await r.connect(url, token);
+  room = r;
+  log("connected", r.name);
+  return r;
 }
 
-async function publish(kind) {
-  camBtn.disabled = screenBtn.disabled = true;
-  try {
-    const connected = await connect();
-    await stopTrack();
-    if (kind === "camera") {
-      publishedTrack = await createLocalVideoTrack({
-        resolution: { width: 960, height: 540, frameRate: 30 },
-      });
-    } else {
-      const tracks = await createLocalScreenTracks({ audio: false });
-      publishedTrack = tracks.find((track) => track.kind === "video");
-    }
-    publishedTrack.contentHint = "motion";
-    await connected.localParticipant.publishTrack(publishedTrack, {
-      simulcast: false,
-      source: kind === "screen" ? LivekitClient.Track.Source.ScreenShare : LivekitClient.Track.Source.Camera,
-      videoEncoding: { maxBitrate: 1500000, maxFramerate: 30 },
-      degradationPreference: "maintainFramerate",
-      scalabilityMode: "L1T1",
-    });
-    publishedTrack.attach(preview);
-    await publishConfig();
-    statusEl.textContent = "publishing " + kind + " · " + modelSelect.value;
-    stopBtn.disabled = false;
-  } catch (err) {
-    statusEl.textContent = "error: " + (err.message || err);
-  } finally {
-    camBtn.disabled = screenBtn.disabled = false;
+function metrics(ms) {
+  latencies.push(ms); if (latencies.length > 30) latencies.shift();
+  const now = performance.now(); stamps.push(now);
+  while (stamps[0] < now - 5000) stamps.shift();
+  const sorted = [...latencies].sort((a, b) => a - b);
+  $("last").textContent = ms.toFixed(1);
+  $("p50").textContent = sorted[sorted.length >> 1].toFixed(1);
+  $("fps").textContent = (stamps.length / Math.min(5, (now - stamps[0]) / 1000 || 1)).toFixed(1);
+}
+
+async function draw(id) {
+  const bitmap = frames.get(id), body = results.get(id);
+  if (!bitmap || !body) return;
+  const labels = body.mask && body.mask.data ? await decodeLabels(body.mask).catch(() => null) : null;
+  if (Number(id) < shown) return;  // a newer frame was drawn while the mask decoded
+  $("empty").hidden = true;
+  view.width = bitmap.width; view.height = bitmap.height;
+  const ctx = view.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0);
+  if (labels) paintMask(ctx, labels, body.items || []);
+  paint(ctx, body, bitmap.width, bitmap.height);
+  shown = Number(id);
+  for (const map of [frames, results]) for (const k of map.keys()) if (Number(k) <= shown) map.delete(k);
+}
+
+// ---- overlay, as in the VLM Run /live page: class-coloured boxes with label chips, and
+// OpenPose-style limbs (thick, translucent, rainbow-ordered) with a dot on every joint.
+const PALETTE = ["#38bdf8", "#f472b6", "#a3e635", "#fb923c", "#c084fc", "#2dd4bf", "#f87171", "#818cf8"];
+const classColor = (name) => {
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  return PALETTE[Math.abs(hash) % PALETTE.length];
+};
+const SAM_PALETTE = ["#22d3ee", "#f472b6", "#a3e635", "#fb923c", "#a78bfa", "#facc15", "#34d399", "#f87171", "#60a5fa", "#e879f9"];
+const samColor = (label) => {  // FNV-1a of the class name: the same colour on every frame
+  let hash = 0x811c9dc5;
+  for (const ch of (label || "match").trim().toLowerCase()) hash = Math.imul(hash ^ ch.charCodeAt(0), 0x01000193);
+  return SAM_PALETTE[(hash >>> 0) % SAM_PALETTE.length];
+};
+const OPENPOSE_COLORS = ["#ff0000","#ff5500","#ffaa00","#ffff00","#aaff00","#55ff00","#00ff00","#00ff55","#00ffaa","#00ffff","#00aaff","#0055ff","#0000ff","#5500ff","#aa00ff","#ff00ff","#ff00aa","#ff0055"];
+const COCO = ["nose","left_eye","right_eye","left_ear","right_ear","left_shoulder","right_shoulder","left_elbow","right_elbow","left_wrist","right_wrist","left_hip","right_hip","left_knee","right_knee","left_ankle","right_ankle"];
+const JOINTS = ["nose","neck","right_shoulder","right_elbow","right_wrist","left_shoulder","left_elbow","left_wrist","right_hip","right_knee","right_ankle","left_hip","left_knee","left_ankle","right_eye","left_eye","right_ear","left_ear"];
+const LIMBS = [["neck","right_shoulder"],["neck","left_shoulder"],["right_shoulder","right_elbow"],["right_elbow","right_wrist"],["left_shoulder","left_elbow"],["left_elbow","left_wrist"],["neck","right_hip"],["right_hip","right_knee"],["right_knee","right_ankle"],["neck","left_hip"],["left_hip","left_knee"],["left_knee","left_ankle"],["neck","nose"],["nose","right_eye"],["right_eye","right_ear"],["nose","left_eye"],["left_eye","left_ear"]];
+const MIN_SCORE = 0.3;
+
+// The label map is a grayscale PNG with each instance's id in the red channel. Paint it as the
+// /live page does: a translucent fill per instance with an opaque one-pixel outline.
+async function decodeLabels(mask) {
+  const blob = await (await fetch(mask.data)).blob();
+  const bmp = await createImageBitmap(blob, { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+  const c = document.createElement("canvas");
+  c.width = mask.width; c.height = mask.height;
+  const cx = c.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close();
+  return cx.getImageData(0, 0, c.width, c.height);
+}
+
+function paintMask(ctx, labels, items) {
+  const { width: mw, height: mh, data } = labels;
+  const lut = new Map(items.map((it) => [it.instance_id, samColor(it.label)]));
+  const out = new ImageData(mw, mh);
+  const row = mw * 4;
+  for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+    const p = y * row + x * 4, id = data[p];
+    const hex = id && lut.get(id);
+    if (!hex) continue;
+    const edge = (x > 0 && data[p - 4] !== id) || (x < mw - 1 && data[p + 4] !== id) || (y > 0 && data[p - row] !== id) || (y < mh - 1 && data[p + row] !== id);
+    const v = parseInt(hex.slice(1), 16);
+    out.data[p] = v >> 16; out.data[p + 1] = (v >> 8) & 255; out.data[p + 2] = v & 255;
+    out.data[p + 3] = edge ? 255 : 115;
+  }
+  const layer = document.createElement("canvas");
+  layer.width = mw; layer.height = mh;
+  layer.getContext("2d").putImageData(out, 0, 0);
+  ctx.drawImage(layer, 0, 0, ctx.canvas.width, ctx.canvas.height);
+}
+
+function paint(ctx, body, w, h) {
+  const items = Array.isArray(body.items) ? body.items : [];
+  const font = Math.max(11, Math.round(h * 0.024));
+  ctx.font = `500 ${font}px Inter, system-ui, sans-serif`;
+  ctx.lineCap = "round";
+  const segment = body.object && body.object.includes("segment");
+  items.forEach((item, i) => {
+    const [bx, by, bw, bh] = (item.bbox_xywh || [0, 0, 0, 0]).map((v, k) => v * (k % 2 ? h : w));
+    if (item.kpts_xy) return pose(ctx, item, w, h, bh);
+    if (!item.bbox_xywh) return;
+    const color = segment ? samColor(item.label) : classColor(item.label || "");
+    ctx.strokeStyle = color;
+    ctx.lineWidth = segment ? 1.25 : 2;
+    ctx.strokeRect(bx, by, bw, bh);
+    const label = item.label || "object";
+    const text = item.score != null ? `${label} ${item.score.toFixed(2)}` : label;
+    const pad = font * 0.25, chip = font + pad;
+    const top = by >= chip ? by - chip : by;
+    ctx.globalAlpha = 0.85; ctx.fillStyle = color;
+    ctx.fillRect(bx, top, ctx.measureText(text).width + pad * 2, chip);
+    ctx.globalAlpha = 1; ctx.fillStyle = "#0a0a0a";
+    ctx.fillText(text, bx + pad, top + font * 0.92);
+  });
+  const caption = body.text || body.value;
+  if (typeof caption === "string") {
+    ctx.fillStyle = "rgba(10,10,10,.75)";
+    ctx.fillRect(0, h - font * 3, w, font * 3);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(caption.slice(0, Math.floor(w / (font * 0.55))), font * 0.6, h - font * 1.1);
   }
 }
 
-async function stopTrack() {
-  if (!publishedTrack) return;
-  publishedTrack.detach();
-  if (room) await room.localParticipant.unpublishTrack(publishedTrack);
-  publishedTrack.stop();
-  publishedTrack = null;
-  stopBtn.disabled = true;
+function pose(ctx, item, w, h, boxH) {
+  const px = item.kpts_xy.some((p) => p && (p[0] > 1.5 || p[1] > 1.5));
+  const scores = item.kpts_score || [];
+  const joints = new Map();
+  item.kpts_xy.forEach((p, j) => {
+    if (p && (scores[j] ?? 1) >= MIN_SCORE) joints.set(COCO[j], { x: p[0] * (px ? 1 : w), y: p[1] * (px ? 1 : h) });
+  });
+  const l = joints.get("left_shoulder"), r = joints.get("right_shoulder");
+  if (l && r) joints.set("neck", { x: (l.x + r.x) / 2, y: (l.y + r.y) / 2 });
+  const limb = Math.min(7, Math.max(2, (boxH || h * 0.3) * 0.022));
+  ctx.lineWidth = limb;
+  LIMBS.forEach(([from, to], i) => {
+    const a = joints.get(from), b = joints.get(to);
+    if (!a || !b) return;
+    ctx.globalAlpha = 0.7; ctx.strokeStyle = OPENPOSE_COLORS[i];
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+  JOINTS.forEach((name, i) => {
+    const p = joints.get(name);
+    if (!p) return;
+    ctx.fillStyle = OPENPOSE_COLORS[i];
+    ctx.beginPath(); ctx.arc(p.x, p.y, limb * 0.7, 0, 7); ctx.fill();
+  });
 }
-
-function selectedModel() {
-  const option = modelSelect.selectedOptions[0];
-  const method = option ? option.dataset.method : "pose";
-  let prompt = promptInput.value.trim();
-  if (method === "segment" && !prompt) {
-    prompt = "face";
-    promptInput.value = prompt;
-  }
-  return { model: modelSelect.value, method, prompt };
-}
-
-async function publishConfig() {
-  if (!room || room.state !== "connected") return;
-  const choice = selectedModel();
-  shown = -1;
-  for (const bitmap of frames.values()) if (bitmap && bitmap.close) bitmap.close();
-  frames.clear();
-  poses.clear();
-  stage.classList.remove("matched");
-  await room.localParticipant.sendText(JSON.stringify(choice), { topic: "control" });
-  statusEl.textContent = "publishing · " + choice.model;
-}
-
-camBtn.onclick = () => publish("camera");
-screenBtn.onclick = () => publish("screen");
-stopBtn.onclick = () => { stopTrack(); statusEl.textContent = "connected · " + (room ? room.name : ""); };
-modelSelect.onchange = () => publishConfig();
-promptInput.onchange = () => publishConfig();
+promptEl.value = model[3];
+mark();
 </script>
 </body>
 </html>
