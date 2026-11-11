@@ -22,8 +22,12 @@ class FakeParticipant:
         self.texts: list[tuple[str, str]] = []
         self.files: list[dict[str, Any]] = []
         self.order: list[str] = []
+        self.logs: list[dict[str, Any]] = []
 
     async def send_text(self, text: str, *, topic: str = "", **_: Any) -> None:
+        if topic == "log":  # session events, kept apart from results
+            self.logs.append(json.loads(text))
+            return
         self.texts.append((topic, text))
         self.order.append(f"text:{topic}")
 

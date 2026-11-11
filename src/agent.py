@@ -161,11 +161,13 @@ class VisionAgent:
         logger.info("gateway open model=%s method=%s max_fps=%s", model, method or "(default)", session.max_fps)
         return session
 
-    async def _publish(self, jpeg: bytes, event: dict, model: str, latency_ms: int) -> None:
+    def _event(self, kind: str, **data: object) -> None:
+        """A session lifecycle event. The demo posts these to the page; here it is a hook."""
+
+    async def _publish(self, jpeg: bytes, event: dict, model: str, latency_ms: int, seq: int) -> None:
         """Post the result as JSON on the ``vision`` text stream."""
-        self._seq += 1
         payload = observation(event, model=model, latency_ms=latency_ms)
-        payload["_vlmrun"]["seq"] = self._seq
+        payload["_vlmrun"]["seq"] = seq
         await self.room.local_participant.send_text(json.dumps(payload), topic=RESULT_TOPIC)
 
     async def _analysis_loop(self) -> None:
@@ -177,10 +179,11 @@ class VisionAgent:
         interval = sample_interval(VISION_FPS, 0)
         failures = 0
 
-        async def drop_session() -> None:
+        async def drop_session(reason: str) -> None:
             nonlocal session
             if session is not None:
                 await session.aclose()
+                self._event("session.close", reason=reason)
                 session = None
 
         try:
@@ -190,21 +193,24 @@ class VisionAgent:
                     # The camera left or went idle: close the billed session until the next frame.
                     if session is not None:
                         logger.info("closing gateway session (no frames)")
-                        await drop_session()
+                        await drop_session("no frames for %gs" % IDLE_CLOSE_S)
                     continue
                 if session is not None and opened_with != self._want:
-                    await drop_session()
+                    await drop_session("model changed")
                 if session is None:
                     opened_with = self._want
+                    self._event("session.start", model=opened_with[0], method=opened_with[1])
                     try:
                         session = await self._open(api_key, opened_with)
                     except Exception as e:
                         failures += 1
                         wait = min(MAX_RETRY_S, RETRY_S * 2 ** (failures - 1))
                         logger.warning("gateway session failed (%s); retrying in %.0fs", e, wait)
+                        self._event("session.failed", error=str(e), retry_s=wait)
                         await asyncio.sleep(wait)
                         continue
                     interval = sample_interval(VISION_FPS, session.max_fps)
+                    self._event("session.open", model=session.model, max_fps=session.max_fps)
                 started = time.perf_counter()
                 try:
                     jpeg = await asyncio.to_thread(_jpeg, frame)
@@ -213,17 +219,21 @@ class VisionAgent:
                     if event is not None:
                         latency_ms = round((time.perf_counter() - started) * 1000)
                         # Off the critical path: the next frame doesn't wait for the room.
-                        self._track_task(asyncio.create_task(self._publish(jpeg, event, session.model, latency_ms)))
+                        self._seq += 1  # numbered here, not in the task, so concurrent publishes can't share an id
+                        self._track_task(
+                            asyncio.create_task(self._publish(jpeg, event, session.model, latency_ms, self._seq))
+                        )
                         logger.info("result %sms model=%s", latency_ms, session.model)
                 except Exception:
                     logger.exception("frame failed")
                     failures += 1
-                    await drop_session()
+                    self._event("frame.failed", retry_s=min(MAX_RETRY_S, RETRY_S * 2 ** (failures - 1)))
+                    await drop_session("frame failed")
                     await asyncio.sleep(min(MAX_RETRY_S, RETRY_S * 2 ** (failures - 1)))
                     continue
                 await asyncio.sleep(max(0.0, interval - (time.perf_counter() - started)))
         finally:
-            await drop_session()
+            await drop_session("worker stopped")
 
 
 async def run(ctx: JobContext, agent_cls: type[VisionAgent]) -> None:

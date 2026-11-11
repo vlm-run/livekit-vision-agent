@@ -36,6 +36,8 @@ def test_token_endpoint_grants_publish_to_the_demo_room(monkeypatch):
         port = server.server_address[1]
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/token") as resp:
             body = json.loads(resp.read())
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/token") as resp:
+            other = json.loads(resp.read())
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/index.html") as resp:
             page = resp.read()
     finally:
@@ -43,7 +45,8 @@ def test_token_endpoint_grants_publish_to_the_demo_room(monkeypatch):
 
     assert body["url"] == "wss://example.livekit.cloud"
     video = jwt_claims(body["token"])["video"]
-    assert video["room"] == "test-room"
+    assert video["room"].startswith("test-room-")
+    assert jwt_claims(other["token"])["video"]["room"] != video["room"], "each page gets its own room"
     assert video["roomJoin"] and video["canPublish"] and video["canSubscribe"]
     assert b"<html" in page.lower(), "the demo page is served"
     assert b"VLMRUN_API_KEY" not in page, "the page never holds the VLM Run key"

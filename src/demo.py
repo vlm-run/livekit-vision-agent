@@ -42,14 +42,24 @@ class DemoAgent(agent.VisionAgent):
         self._want = (model, str(body.get("method") or ""), str(body.get("prompt") or ""), params)
         logger.info("model request %s method=%s", model, self._want[1] or "(default)")
 
-    async def _publish(self, jpeg: bytes, event: dict, model: str, latency_ms: int) -> None:
+    def _event(self, kind: str, **data: object) -> None:
+        # Fire and forget: the page's logs table must never slow the frame loop.
+        async def send() -> None:
+            try:
+                await self.room.local_participant.send_text(json.dumps({"event": kind, **data}), topic="log")
+            except Exception:
+                logger.exception("log event")
+
+        self._track_task(asyncio.create_task(send()))
+
+    async def _publish(self, jpeg: bytes, event: dict, model: str, latency_ms: int, seq: int) -> None:
         # The frame goes first, so the page draws the result on the JPEG the model saw.
-        frame_id = str(self._seq + 1)
+        frame_id = str(seq)
         await self.room.local_participant.send_bytes(
             jpeg, topic="frame", name=frame_id, mime_type="image/jpeg",
             attributes={"frame": frame_id}, compress=False,
         )
-        await super()._publish(jpeg, event, model, latency_ms)
+        await super()._publish(jpeg, event, model, latency_ms, seq)
 
 
 async def entrypoint(ctx: JobContext) -> None:

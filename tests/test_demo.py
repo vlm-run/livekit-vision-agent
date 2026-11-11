@@ -63,3 +63,19 @@ def test_entrypoints_can_be_pickled():
 
     for fn in (agent.entrypoint, demo.entrypoint):
         assert pickle.loads(pickle.dumps(fn)) is fn
+
+
+async def test_session_events_are_posted_to_the_log_topic():
+    room = FakeRoom()
+    vision = demo.DemoAgent(room)  # type: ignore[arg-type]
+    feed = camera(vision)
+    task = await run_loop(vision)
+    await wait_for(lambda: sent_count() >= 1)
+    vision._want = ("geopavlakos/hamer", "pose", "", "")
+    await wait_for(lambda: any(e["event"] == "session.close" for e in room.local_participant.logs))
+    await stop(task)
+    feed.cancel()
+
+    events = [e["event"] for e in room.local_participant.logs]
+    assert events[:2] == ["session.start", "session.open"]
+    assert next(e for e in room.local_participant.logs if e["event"] == "session.close")["reason"] == "model changed"
