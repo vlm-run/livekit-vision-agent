@@ -226,16 +226,15 @@ class VisionAgent:
             await drop_session()
 
 
-def make_entrypoint(agent_cls: type[VisionAgent] = VisionAgent):
-    async def entrypoint(ctx: JobContext) -> None:
-        await ctx.connect(auto_subscribe=AutoSubscribe.VIDEO_ONLY)
-        logger.info("joined %s", ctx.room.name)
-        await agent_cls(ctx.room).start()
-
-    return entrypoint
+async def run(ctx: JobContext, agent_cls: type[VisionAgent]) -> None:
+    await ctx.connect(auto_subscribe=AutoSubscribe.VIDEO_ONLY)
+    logger.info("joined %s", ctx.room.name)
+    await agent_cls(ctx.room).start()
 
 
-entrypoint = make_entrypoint()
+# Module level: LiveKit pickles the entrypoint to start each job in its own process.
+async def entrypoint(ctx: JobContext) -> None:
+    await run(ctx, VisionAgent)
 
 
 if __name__ == "__main__":

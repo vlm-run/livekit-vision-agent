@@ -3,377 +3,256 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VLM Run × LiveKit</title>
+<title>Live vision · LiveKit × VLM Run</title>
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <style>
-  :root { color-scheme: dark; }
+  :root { color-scheme: dark; --bg:#0b0d10; --panel:#12151a; --line:#232830; --fg:#e6e8eb; --mute:#8a93a0; --acc:#7ee787; }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh; background: #0b0d12; color: #e8eaf0;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  header { padding: 20px 28px; border-bottom: 1px solid #1d2230; display: flex; align-items: baseline; gap: 12px; }
-  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
-  header span { color: #8b93a7; font-size: 13px; }
-  main { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; padding: 24px 28px; max-width: 1200px; margin: 0 auto; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .panel { background: #10131b; border: 1px solid #1d2230; border-radius: 12px; overflow: hidden; }
-  .panel h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8b93a7; margin: 0; padding: 12px 16px; border-bottom: 1px solid #1d2230; }
-  .stage { position: relative; background: #000; aspect-ratio: 16/9; }
-  #view { width: 100%; height: 100%; display: none; object-fit: contain; background: #000; }
-  .stage.matched #view { display: block; }
-  .pip { width: 100%; height: 100%; }
-  .pip video { width: 100%; height: 100%; background: #000; display: block; object-fit: contain; }
-  .pip span { display: none; }
-  .stage.matched .pip {
-    position: absolute; right: 12px; bottom: 12px; width: 26%; height: auto;
-    border-radius: 8px; overflow: hidden; border: 1px solid #2a3144;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
-  }
-  .stage.matched .pip video { aspect-ratio: 16/9; object-fit: cover; }
-  .stage.matched .pip span {
-    display: block; position: absolute; left: 8px; bottom: 8px;
-    font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #e8eaf0;
-    background: rgba(11, 13, 18, .72); border-radius: 4px; padding: 2px 6px;
-  }
-  .controls { padding: 14px 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  button {
-    background: #2450ff; color: #fff; border: 0; border-radius: 8px; padding: 9px 16px;
-    font-size: 14px; font-weight: 500; cursor: pointer;
-  }
-  button.secondary { background: #1d2230; }
-  button:disabled { opacity: .45; cursor: default; }
-  select, input {
-    background: #1d2230; color: #e8eaf0; border: 0; border-radius: 8px;
-    padding: 9px 12px; font-size: 14px;
-  }
-  input { width: 140px; }
-  #status { font-size: 13px; color: #8b93a7; margin-left: auto; }
-  #latest {
-    margin: 0; padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
-    white-space: pre-wrap; word-break: break-word; min-height: 160px; color: #7ee787;
-  }
-  #log { padding: 0 16px 16px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #8b93a7; max-height: 280px; overflow-y: auto; }
-  #log div { padding: 6px 0; border-top: 1px solid #161a26; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui,sans-serif; }
+  header { display:flex; align-items:baseline; gap:12px; padding:14px 20px; border-bottom:1px solid var(--line); }
+  h1 { font-size:15px; margin:0; font-weight:600; }
+  header span, .caps { color:var(--mute); }
+  .caps { font-size:11px; letter-spacing:.08em; text-transform:uppercase; margin:0 0 8px; font-weight:500; }
+  main { display:grid; grid-template-columns:minmax(0,5fr) minmax(0,6fr); gap:16px; padding:16px 20px; max-width:1500px; margin:auto; }
+  @media (max-width:900px) { main { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; min-width:0; }
+  .panel + .panel { margin-top:16px; }
+  .stage { position:relative; aspect-ratio:16/9; background:#000; border-radius:6px; overflow:hidden; }
+  .stage video, .stage canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  .clips { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .clip { background:none; border:0; padding:0; color:var(--fg); text-align:left; cursor:pointer; font:inherit; font-size:12px; }
+  .clip video { width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:5px; background:#000; display:block; box-shadow:0 0 0 1px var(--line); pointer-events:none; }
+  .clip[aria-pressed=true] video { box-shadow:0 0 0 2px var(--acc); }
+  .clip span { display:block; margin-top:3px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .models { display:flex; flex-wrap:wrap; gap:6px; }
+  .models button { background:none; border:1px solid var(--line); color:var(--fg); border-radius:5px; padding:5px 10px; font:inherit; cursor:pointer; }
+  .models button[aria-pressed=true] { border-color:var(--acc); color:var(--acc); }
+  input { background:var(--bg); border:1px solid var(--line); color:var(--fg); border-radius:5px; padding:5px 8px; font:inherit; width:100%; margin-top:8px; }
+  .metrics { display:flex; gap:24px; margin:12px 0; }
+  .metrics b { display:block; font-size:20px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .metrics span { color:var(--mute); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+  pre { margin:0; max-height:260px; overflow:auto; font:12px/1.45 ui-monospace,monospace; color:var(--mute); white-space:pre-wrap; word-break:break-word; }
+  #status { color:var(--mute); margin-left:auto; }
 </style>
 </head>
 <body>
 <header>
   <h1>Live vision</h1>
-  <span>LiveKit camera → VLM Run WS /v1/ws → JSON</span>
+  <span>stock clip → LiveKit room → agent → VLM Run <code>/v1/ws</code></span>
+  <span id="status">pick a clip</span>
 </header>
 <main>
+  <div>
+    <section class="panel">
+      <p class="caps">Source</p>
+      <div class="stage"><video id="src" muted loop playsinline crossorigin="anonymous"></video></div>
+    </section>
+    <section class="panel">
+      <p class="caps">Clips</p>
+      <div class="clips" id="clips"></div>
+    </section>
+    <section class="panel">
+      <p class="caps">Model</p>
+      <div class="models" id="models"></div>
+      <input id="prompt" placeholder="prompt" hidden>
+    </section>
+  </div>
   <section class="panel">
-    <h2>Model frame</h2>
-    <div class="stage" id="stage">
-      <canvas id="view"></canvas>
-      <div class="pip">
-        <video id="preview" autoplay muted playsinline></video>
-        <span>live</span>
-      </div>
+    <p class="caps">What the model saw</p>
+    <div class="stage"><canvas id="view"></canvas></div>
+    <div class="metrics">
+      <div><b id="last">–</b><span>last ms</span></div>
+      <div><b id="p50">–</b><span>median ms</span></div>
+      <div><b id="fps">–</b><span>results / s</span></div>
     </div>
-    <div class="controls">
-      <button id="camBtn">Share camera</button>
-      <button id="screenBtn" class="secondary">Share screen</button>
-      <button id="stopBtn" class="secondary" disabled>Stop</button>
-      <select id="model">
-        <option value="usyd-community/vitpose-plus-large" data-method="pose">ViTPose+</option>
-        <option value="geopavlakos/hamer" data-method="pose">HaMeR</option>
-        <option value="facebook/sam3.1" data-method="segment">SAM 3.1</option>
-        <option value="paddleocr/pp-ocrv6" data-method="ocr">PP-OCRv6</option>
-      </select>
-      <input id="prompt" placeholder="prompt">
-      <span id="status">disconnected</span>
-    </div>
-  </section>
-  <section class="panel">
-    <h2>Structured output</h2>
-    <pre id="latest">waiting for the agent</pre>
-    <div id="log"></div>
+    <p class="caps">Result</p>
+    <pre id="json">waiting for the agent</pre>
   </section>
 </main>
 <script>
-const { Room, RoomEvent, createLocalVideoTrack, createLocalScreenTracks } = LivekitClient;
+const BASE = "https://storage.googleapis.com/vlm-data-public-prod/";
+const CLIPS = [
+  ["Home workout", "gw/examples/fitness-home-workout.mp4"],
+  ["Hip-hop dance", "gw/examples/dance-dancetrack-hiphop.mp4"],
+  ["Soccer juggling", "gw/examples/sports-soccer-juggling.mp4"],
+  ["Factory worker", "hub/examples/robotics.agent/factory001_worker001_v2.mp4"],
+  ["Dashcam", "hub/examples/video.dashcam/00914.mp4"],
+  ["Overhead traffic", "hub/examples/video.agent/overhead_traffic.mp4"],
+];
+// [label, model, method, default prompt ("" hides the prompt box)]
+const MODELS = [
+  ["ViTPose+", "usyd-community/vitpose-plus-large", "pose", ""],
+  ["RF-DETR", "roboflow/rfdetr-large", "detect", ""],
+  ["SAM 3.1", "facebook/sam3.1", "segment", "person"],
+  ["Gemma 4 e2b", "google/gemma4-e2b-it:realtime", "chat", "Describe the frame in one sentence."],
+  ["PP-OCRv6", "paddleocr/pp-ocrv6", "ocr", ""],
+];
+const { Room, RoomEvent, LocalVideoTrack, Track } = LivekitClient;
+const $ = (id) => document.getElementById(id);
+const src = $("src"), view = $("view"), promptEl = $("prompt"), statusEl = $("status");
 
-const statusEl = document.getElementById("status");
-const latestEl = document.getElementById("latest");
-const logEl = document.getElementById("log");
-const preview = document.getElementById("preview");
-const view = document.getElementById("view");
-const stage = document.getElementById("stage");
-const camBtn = document.getElementById("camBtn");
-const screenBtn = document.getElementById("screenBtn");
-const stopBtn = document.getElementById("stopBtn");
-const modelSelect = document.getElementById("model");
-const promptInput = document.getElementById("prompt");
-
-// COCO 17: nose, eyes, ears, shoulders, elbows, wrists, hips, knees, ankles.
-const BONES = [[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
-const HAND_BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
-const PERSON_COLORS = ["#7ee787", "#79c0ff", "#ffa657", "#d2a8ff", "#ff7b72"];
-
-let room = null;
-let publishedTrack = null;
-const frames = new Map();
-const poses = new Map();
+let room = null, track = null, clip = CLIPS[0], model = MODELS[0];
+const frames = new Map(), results = new Map();
 let shown = -1;
+const latencies = [], stamps = [];
 
-function usesPixels(items) {
-  for (const person of items) {
-    const pts = person.kpts_xy || [];
-    for (const pt of pts) {
-      if (pt && (pt[0] > 1.5 || pt[1] > 1.5)) return true;
-    }
-  }
-  return false;
+// ---- controls
+CLIPS.forEach((c) => {
+  const b = document.createElement("button");
+  b.className = "clip";
+  b.innerHTML = `<video src="${BASE + c[1]}#t=1" preload="metadata" muted playsinline crossorigin="anonymous"></video><span>${c[0]}</span>`;
+  b.onclick = () => play(c);
+  b.dataset.clip = c[0];
+  $("clips").append(b);
+});
+MODELS.forEach((m) => {
+  const b = document.createElement("button");
+  b.textContent = m[0];
+  b.onclick = () => pick(m);
+  b.dataset.model = m[1];
+  $("models").append(b);
+});
+function mark() {
+  for (const b of $("clips").children) b.setAttribute("aria-pressed", b.dataset.clip === clip[0]);
+  for (const b of $("models").children) b.setAttribute("aria-pressed", b.dataset.model === model[1]);
+  promptEl.hidden = !model[3];
 }
 
-function paintPose(ctx, body, width, height) {
-  const items = Array.isArray(body.items) ? body.items : [];
-  const pixels = usesPixels(items);
-  const point = (pt) => pixels ? [pt[0], pt[1]] : [pt[0] * width, pt[1] * height];
-  items.forEach((person, index) => {
-    const color = PERSON_COLORS[index % PERSON_COLORS.length];
-    const box = person.bbox_xywh;
-    if (box && box.length >= 4) {
-      const [x, y] = point([box[0], box[1]]);
-      const [r, b] = point([box[0] + box[2], box[1] + box[3]]);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, r - x, b - y);
-    }
-    const poly = person.poly_xy;
-    if (Array.isArray(poly) && poly.length >= 2) {
-      ctx.beginPath();
-      poly.forEach((pt, i) => {
-        const [x, y] = point(pt);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.closePath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-    const caption = person.text || (person.label && person.label !== "person" ? person.label : "");
-    if (caption && box && box.length >= 4) {
-      const [x, y] = point([box[0], box[1]]);
-      ctx.font = "16px ui-sans-serif, system-ui, sans-serif";
-      ctx.fillStyle = color;
-      ctx.fillText(String(caption), x + 4, Math.max(18, y - 6));
-    }
-    const pts = person.kpts_xy || [];
-    const scores = person.kpts_score || [];
-    const visible = (i) => pts[i] && (scores[i] == null || scores[i] >= 0.3);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = color;
-    ctx.lineCap = "round";
-    const bones = pts.length >= 21 ? HAND_BONES : BONES;
-    for (const [a, b] of bones) {
-      if (!visible(a) || !visible(b)) continue;
-      const [x1, y1] = point(pts[a]);
-      const [x2, y2] = point(pts[b]);
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    }
-    pts.forEach((pt, i) => {
-      if (!visible(i)) return;
-      const [x, y] = point(pt);
-      ctx.beginPath();
-      ctx.fillStyle = "#0b0d12";
-      ctx.arc(x, y, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.fillStyle = color;
-      ctx.arc(x, y, 3, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  });
-  const latency = body._vlmrun && body._vlmrun.latency_ms;
-  if (latency != null) {
-    const model = (body._vlmrun && body._vlmrun.model) || "";
-    const short = model.split("/").pop() || "model";
-    const label = short + " · " + items.length + " · " + latency + " ms";
-    ctx.font = "13px ui-sans-serif, system-ui, sans-serif";
-    const pad = 8;
-    const tw = ctx.measureText(label).width;
-    ctx.fillStyle = "rgba(11, 13, 18, 0.72)";
-    ctx.fillRect(10, 10, tw + pad * 2, 24);
-    ctx.fillStyle = "#e8eaf0";
-    ctx.fillText(label, 10 + pad, 26);
-  }
+async function pick(m) {
+  model = m;
+  promptEl.value = m[3];
+  mark();
+  await sendControl();
+}
+promptEl.onchange = sendControl;
+
+async function sendControl() {
+  if (!room || room.state !== "connected") return;
+  shown = -1;
+  frames.clear(); results.clear();
+  await room.localParticipant.sendText(
+    JSON.stringify({ model: model[1], method: model[2], prompt: promptEl.value.trim() }),
+    { topic: "control" });
+  statusEl.textContent = `${clip[0]} · ${model[0]}`;
 }
 
-function dropOlder(id) {
-  for (const key of [...frames.keys()]) {
-    if (Number(key) < id) {
-      const bitmap = frames.get(key);
-      if (bitmap && bitmap.close) bitmap.close();
-      frames.delete(key);
-    }
-  }
-  for (const key of [...poses.keys()]) {
-    if (Number(key) < id) poses.delete(key);
-  }
-}
-
-function showPair(id) {
-  const bitmap = frames.get(id);
-  const body = poses.get(id);
-  if (!bitmap || !body || Number(id) < shown) return;
-  shown = Number(id);
-  if (view.width !== bitmap.width || view.height !== bitmap.height) {
-    view.width = bitmap.width;
-    view.height = bitmap.height;
-  }
-  const ctx = view.getContext("2d");
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(bitmap, 0, 0);
-  paintPose(ctx, body, bitmap.width, bitmap.height);
-  stage.classList.add("matched");
-  dropOlder(shown);
-}
-
-async function readBytes(reader) {
-  if (typeof reader.readAll === "function") {
-    const data = await reader.readAll();
-    if (data instanceof Uint8Array) return data;
-    const parts = Array.isArray(data) ? data : [];
-    const size = parts.reduce((n, chunk) => n + chunk.byteLength, 0);
-    const out = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of parts) {
-      out.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return out;
-  }
-  const parts = [];
-  for await (const chunk of reader) parts.push(chunk);
-  const size = parts.reduce((n, chunk) => n + chunk.byteLength, 0);
-  const out = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of parts) {
-    out.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return out;
-}
-
-async function connect() {
-  if (room) return room;
-  const res = await fetch("/token");
-  if (!res.ok) throw new Error("token failed (" + res.status + ")");
-  const { url, token } = await res.json();
-  room = new Room({ adaptiveStream: false, dynacast: false });
-  room.registerByteStreamHandler("frame", async (reader) => {
-    const info = reader.info || {};
-    const id = String((info.attributes && info.attributes.frame) || info.name || "");
-    if (!id || (shown >= 0 && Number(id) < shown)) return;
-    const bytes = await readBytes(reader);
-    const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/jpeg" }));
-    const previous = frames.get(id);
-    if (previous && previous.close) previous.close();
-    frames.set(id, bitmap);
-    showPair(id);
-  });
-  room.registerTextStreamHandler("vision", async (reader) => {
-    const text = await reader.readAll();
-    let pretty = text;
-    let latency = "";
-    try {
-      const body = JSON.parse(text);
-      latency = body._vlmrun && body._vlmrun.latency_ms != null ? body._vlmrun.latency_ms + " ms" : "";
-      pretty = JSON.stringify(body, null, 2);
-      const id = String(body._vlmrun && body._vlmrun.seq != null ? body._vlmrun.seq : "");
-      if (id && !(shown >= 0 && Number(id) < shown)) {
-        poses.set(id, body);
-        showPair(id);
-      }
-    } catch (err) {}
-    latestEl.textContent = latency ? latency + "\n\n" + pretty : pretty;
-    const entry = document.createElement("div");
-    entry.textContent = new Date().toLocaleTimeString() + (latency ? " · " + latency : "");
-    logEl.prepend(entry);
-    while (logEl.childElementCount > 40) logEl.lastChild.remove();
-  });
-  room.on(RoomEvent.Disconnected, () => { statusEl.textContent = "disconnected"; room = null; });
-  await room.connect(url, token);
-  statusEl.textContent = "connected · " + room.name;
-  return room;
-}
-
-async function publish(kind) {
-  camBtn.disabled = screenBtn.disabled = true;
+// ---- publish the playing clip as the room's camera
+async function play(c) {
+  clip = c;
+  mark();
   try {
-    const connected = await connect();
-    await stopTrack();
-    if (kind === "camera") {
-      publishedTrack = await createLocalVideoTrack({
-        resolution: { width: 960, height: 540, frameRate: 30 },
-      });
-    } else {
-      const tracks = await createLocalScreenTracks({ audio: false });
-      publishedTrack = tracks.find((track) => track.kind === "video");
-    }
-    publishedTrack.contentHint = "motion";
-    await connected.localParticipant.publishTrack(publishedTrack, {
-      simulcast: false,
-      source: kind === "screen" ? LivekitClient.Track.Source.ScreenShare : LivekitClient.Track.Source.Camera,
-      videoEncoding: { maxBitrate: 1500000, maxFramerate: 30 },
-      degradationPreference: "maintainFramerate",
-      scalabilityMode: "L1T1",
-    });
-    publishedTrack.attach(preview);
-    await publishConfig();
-    statusEl.textContent = "publishing " + kind + " · " + modelSelect.value;
-    stopBtn.disabled = false;
+    const r = await connect();
+    await unpublish();
+    src.src = BASE + c[1];
+    await src.play();
+    const stream = (src.captureStream || src.mozCaptureStream).call(src);
+    track = new LocalVideoTrack(stream.getVideoTracks()[0]);
+    await r.localParticipant.publishTrack(track, { simulcast: false, source: Track.Source.Camera });
+    await sendControl();
   } catch (err) {
     statusEl.textContent = "error: " + (err.message || err);
-  } finally {
-    camBtn.disabled = screenBtn.disabled = false;
   }
 }
-
-async function stopTrack() {
-  if (!publishedTrack) return;
-  publishedTrack.detach();
-  if (room) await room.localParticipant.unpublishTrack(publishedTrack);
-  publishedTrack.stop();
-  publishedTrack = null;
-  stopBtn.disabled = true;
+async function unpublish() {
+  if (!track) return;
+  await room.localParticipant.unpublishTrack(track);
+  track = null;
 }
 
-function selectedModel() {
-  const option = modelSelect.selectedOptions[0];
-  const method = option ? option.dataset.method : "pose";
-  let prompt = promptInput.value.trim();
-  if (method === "segment" && !prompt) {
-    prompt = "face";
-    promptInput.value = prompt;
+// ---- results come back as the JPEG the model saw, then its JSON, matched by seq
+async function connect() {
+  if (room) return room;
+  const { url, token } = await (await fetch("/token")).json();
+  const r = new Room({ adaptiveStream: false, dynacast: false });
+  r.registerByteStreamHandler("frame", async (reader) => {
+    const info = reader.info || {};
+    const id = String((info.attributes && info.attributes.frame) || info.name || "");
+    if (!id || Number(id) < shown) return;
+    const parts = await reader.readAll();
+    frames.set(id, await createImageBitmap(new Blob(Array.isArray(parts) ? parts : [parts], { type: "image/jpeg" })));
+    draw(id);
+  });
+  r.registerTextStreamHandler("vision", async (reader) => {
+    const text = await reader.readAll();
+    let body;
+    try { body = JSON.parse(text); } catch { return; }
+    $("json").textContent = JSON.stringify(body, null, 2);
+    const meta = body._vlmrun || {};
+    if (meta.latency_ms != null) metrics(meta.latency_ms);
+    if (meta.seq != null) { results.set(String(meta.seq), body); draw(String(meta.seq)); }
+  });
+  r.on(RoomEvent.Disconnected, () => { room = null; statusEl.textContent = "disconnected"; });
+  await r.connect(url, token);
+  room = r;
+  return r;
+}
+
+function metrics(ms) {
+  latencies.push(ms); if (latencies.length > 30) latencies.shift();
+  const now = performance.now(); stamps.push(now);
+  while (stamps[0] < now - 5000) stamps.shift();
+  const sorted = [...latencies].sort((a, b) => a - b);
+  $("last").textContent = ms;
+  $("p50").textContent = sorted[sorted.length >> 1];
+  $("fps").textContent = (stamps.length / Math.min(5, (now - stamps[0]) / 1000 || 1)).toFixed(1);
+}
+
+function draw(id) {
+  const bitmap = frames.get(id), body = results.get(id);
+  if (!bitmap || !body) return;
+  view.width = bitmap.width; view.height = bitmap.height;
+  const ctx = view.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0);
+  paint(ctx, body, bitmap.width, bitmap.height);
+  shown = Number(id);
+  for (const map of [frames, results]) for (const k of map.keys()) if (Number(k) <= shown) map.delete(k);
+}
+
+// ---- overlay: boxes, skeletons, OCR text, or a caption, whatever the result holds
+const COCO = [[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
+const HAND = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]];
+const COLORS = ["#7ee787", "#79c0ff", "#ffa657", "#d2a8ff", "#ff7b72"];
+
+function paint(ctx, body, w, h) {
+  const items = Array.isArray(body.items) ? body.items : [];
+  const font = Math.max(12, Math.round(h * 0.03));
+  ctx.font = `600 ${font}px system-ui`;
+  ctx.lineWidth = Math.max(2, h / 300);
+  items.forEach((item, i) => {
+    const color = COLORS[i % COLORS.length];
+    ctx.strokeStyle = ctx.fillStyle = color;
+    const kpts = item.kpts_xy;
+    if (kpts && kpts.length) {
+      const px = kpts.some((p) => p && (p[0] > 1.5 || p[1] > 1.5));
+      const at = (p) => [p[0] * (px ? 1 : w), p[1] * (px ? 1 : h)];
+      for (const [a, b] of kpts.length === 21 ? HAND : COCO) {
+        if (!kpts[a] || !kpts[b]) continue;
+        ctx.beginPath(); ctx.moveTo(...at(kpts[a])); ctx.lineTo(...at(kpts[b])); ctx.stroke();
+      }
+      for (const p of kpts) if (p) { ctx.beginPath(); ctx.arc(...at(p), ctx.lineWidth * 1.6, 0, 7); ctx.fill(); }
+      return;
+    }
+    const box = item.bbox_xywh;
+    if (!box) return;
+    const [x, y, bw, bh] = box.map((v, k) => v * (k % 2 ? h : w));
+    ctx.strokeRect(x, y, bw, bh);
+    const label = item.text || item.label;
+    if (!label) return;
+    const text = item.score != null && !item.text ? `${label} ${item.score.toFixed(2)}` : label;
+    const tw = ctx.measureText(text).width + font * 0.5;
+    ctx.fillRect(x, Math.max(0, y - font * 1.3), tw, font * 1.3);
+    ctx.fillStyle = "#0b0d10";
+    ctx.fillText(text, x + font * 0.25, Math.max(font, y - font * 0.3));
+  });
+  const caption = body.text || body.value;
+  if (typeof caption === "string") {
+    ctx.fillStyle = "rgba(0,0,0,.7)";
+    ctx.fillRect(0, h - font * 3, w, font * 3);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(caption.slice(0, Math.floor(w / (font * 0.55))), font * 0.5, h - font * 1.1);
   }
-  return { model: modelSelect.value, method, prompt };
 }
-
-async function publishConfig() {
-  if (!room || room.state !== "connected") return;
-  const choice = selectedModel();
-  shown = -1;
-  for (const bitmap of frames.values()) if (bitmap && bitmap.close) bitmap.close();
-  frames.clear();
-  poses.clear();
-  stage.classList.remove("matched");
-  await room.localParticipant.sendText(JSON.stringify(choice), { topic: "control" });
-  statusEl.textContent = "publishing · " + choice.model;
-}
-
-camBtn.onclick = () => publish("camera");
-screenBtn.onclick = () => publish("screen");
-stopBtn.onclick = () => { stopTrack(); statusEl.textContent = "connected · " + (room ? room.name : ""); };
-modelSelect.onchange = () => publishConfig();
-promptInput.onchange = () => publishConfig();
+mark();
 </script>
 </body>
 </html>

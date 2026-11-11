@@ -14,7 +14,7 @@ import json
 import logging
 
 from livekit import rtc
-from livekit.agents import WorkerOptions, cli
+from livekit.agents import JobContext, WorkerOptions, cli
 
 import agent
 
@@ -52,5 +52,9 @@ class DemoAgent(agent.VisionAgent):
         await super()._publish(jpeg, event, model, latency_ms)
 
 
+async def entrypoint(ctx: JobContext) -> None:
+    await agent.run(ctx, DemoAgent)
+
+
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=agent.make_entrypoint(DemoAgent)))
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))

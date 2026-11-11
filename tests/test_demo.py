@@ -55,3 +55,11 @@ async def test_control_message_without_a_model_is_ignored():
     before = vision._want
     await vision._apply_control(_Reader({"method": "pose"}))  # type: ignore[arg-type]
     assert vision._want == before
+
+
+def test_entrypoints_can_be_pickled():
+    """LiveKit sends the entrypoint to a job process, so a closure or lambda would fail there."""
+    import pickle
+
+    for fn in (agent.entrypoint, demo.entrypoint):
+        assert pickle.loads(pickle.dumps(fn)) is fn
