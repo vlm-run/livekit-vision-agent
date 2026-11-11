@@ -1,8 +1,9 @@
 """Real-room check: a fake camera publishes into a LiveKit Cloud room, the agent runs
 against the live VLM Run socket, and its ``vision`` text stream is read back.
 
-Needs LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET and VLMRUN_API_KEY. Prints
-PASS/FAIL per check and exits non-zero on any failure.
+Needs LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET and VLMRUN_API_KEY; it is
+skipped (exit 0) when any is missing. Prints PASS/FAIL per check and exits non-zero
+on any failure.
 """
 
 from __future__ import annotations
@@ -20,6 +21,11 @@ from pathlib import Path
 
 from livekit import api, rtc
 from PIL import Image
+
+REQUIRED = ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "VLMRUN_API_KEY")
+if missing := [name for name in REQUIRED if not os.environ.get(name)]:
+    print(f"SKIP: {', '.join(missing)} not set")
+    sys.exit(0)
 
 ROOT = Path(__file__).resolve().parents[1]
 URL = os.environ["LIVEKIT_URL"]
