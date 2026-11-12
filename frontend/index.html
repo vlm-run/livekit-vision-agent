@@ -47,8 +47,9 @@ if (!crypto.randomUUID) {
   .clips { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
   .clip { background:none; border:0; padding:0; color:var(--foreground); text-align:left; cursor:pointer; font:inherit; font-size:12px; }
   .clip video { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; border-radius:var(--radius); background:hsl(224 10% 10%); box-shadow:0 0 0 1px var(--border); pointer-events:none; }
-  .clip:hover video { box-shadow:0 0 0 1px var(--muted); }
-  .clip[aria-pressed=true] video { box-shadow:0 0 0 2px var(--primary); }
+  .clip .cam { aspect-ratio:16/9; display:grid; place-items:center; border-radius:var(--radius); background:hsl(224 10% 10%); color:#fff; box-shadow:0 0 0 1px var(--border); }
+  .clip:hover video, .clip:hover .cam { box-shadow:0 0 0 1px var(--muted); }
+  .clip[aria-pressed=true] video, .clip[aria-pressed=true] .cam { box-shadow:0 0 0 2px var(--primary); }
   .clip span { display:block; margin-top:4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
   details { margin-top:12px; }
   summary { cursor:pointer; color:var(--primary); font-size:13px; }
@@ -132,6 +133,8 @@ const CLIPS = [
   ["Dashcam", "hub/examples/video.dashcam/00914.mp4"],
   ["Home workout", "gw/examples/fitness-home-workout.mp4"],
 ];
+// A tile with no path publishes the viewer's own camera instead of a clip.
+const TILES = [["Webcam", null], ...CLIPS];
 // [label, model, method, default prompt ("" hides the prompt box)]
 const MODELS = [
   ["Gemma 4 e2b", "google/gemma4-e2b-it:realtime", "chat", "Describe the frame in one sentence."],
@@ -169,15 +172,17 @@ function tile(c) {
   const b = document.createElement("button");
   b.className = "clip";
   b.dataset.clip = c[0];
-  b.innerHTML = `<video src="${BASE + c[1]}#t=1" preload="metadata" muted playsinline crossorigin="anonymous"></video><span>${c[0]}</span>`;
+  b.innerHTML = c[1]
+    ? `<video src="${BASE + c[1]}#t=1" preload="metadata" muted playsinline crossorigin="anonymous"></video><span>${c[0]}</span>`
+    : `<div class="cam"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg></div><span>${c[0]}</span>`;
   b.onclick = () => play(c);
   return b;
 }
-CLIPS.slice(0, SHOWN).forEach((c) => $("clips").append(tile(c)));
+TILES.slice(0, SHOWN).forEach((c) => $("clips").append(tile(c)));
 // Built on first open, so the hidden thumbnails don't download until asked for.
 $("more").addEventListener("toggle", () => {
   if ($("more").open && !$("moreClips").childElementCount) {
-    CLIPS.slice(SHOWN).forEach((c) => $("moreClips").append(tile(c)));
+    TILES.slice(SHOWN).forEach((c) => $("moreClips").append(tile(c)));
     mark();
   }
 }, { once: false });
@@ -213,7 +218,7 @@ async function sendControl() {
   say(`${clip[0]} · ${model[0]}`, true);
 }
 
-// ---- publish the playing clip as the room's camera
+// ---- publish the playing clip, or the viewer's camera, as the room's camera
 async function play(c) {
   clip = c;
   mark();
@@ -221,9 +226,20 @@ async function play(c) {
   try {
     const r = await connect();
     await unpublish();
-    src.src = BASE + c[1];
-    await src.play();
-    const stream = (src.captureStream || src.mozCaptureStream).call(src);
+    let stream;
+    if (c[1]) {
+      src.srcObject = null;
+      src.src = BASE + c[1];
+      await src.play();
+      stream = (src.captureStream || src.mozCaptureStream).call(src);
+    } else {
+      // Browsers only expose the camera on HTTPS or localhost.
+      if (!navigator.mediaDevices) throw new Error("The camera needs HTTPS or localhost.");
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+      src.removeAttribute("src");
+      src.srcObject = stream;
+      await src.play();
+    }
     track = new LocalVideoTrack(stream.getVideoTracks()[0]);
     // Keep the clip's resolution: the model sees what the encoder sends, and WebRTC
     // otherwise starts small and sheds pixels under load.
