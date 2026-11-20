@@ -27,13 +27,17 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?")[0] != "/token":
             return super().do_GET()
+        # One room per page load: each viewer gets their own agent job and session, so
+        # one person's model pick can't change what another sees.
+        viewer = uuid.uuid4().hex[:6]
+        room = f"{ROOM_NAME}-{viewer}"
         token = (
             api.AccessToken()
-            .with_identity(f"viewer-{uuid.uuid4().hex[:6]}")
+            .with_identity(f"viewer-{viewer}")
             .with_grants(
                 api.VideoGrants(
                     room_join=True,
-                    room=ROOM_NAME,
+                    room=room,
                     can_publish=True,
                     can_subscribe=True,
                 )
